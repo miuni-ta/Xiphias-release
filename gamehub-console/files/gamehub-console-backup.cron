@@ -1,0 +1,5 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Kuala_Lumpur
+
+0 17 * * * pi /home/pi/Xiphias/release/gamehub-console/backup_rollback_zip.sh >> /home/pi/Xiphias/release/gamehub-console/logs/rollback-backup.log 2>&1

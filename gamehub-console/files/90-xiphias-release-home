@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -ne 1000 ]; then
+  exit 0
+fi
+
+RELEASE_ROOT="/home/pi/Xiphias/release"
+
+printf 'HOME=%s\n' "${RELEASE_ROOT}"
+printf 'XDG_CONFIG_HOME=%s/.config\n' "${RELEASE_ROOT}"
+printf 'XDG_DATA_HOME=%s/.local/share\n' "${RELEASE_ROOT}"
+printf 'XDG_CACHE_HOME=%s/.cache\n' "${RELEASE_ROOT}"

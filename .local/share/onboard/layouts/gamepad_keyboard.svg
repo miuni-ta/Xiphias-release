@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="800"
+  height="190"
+  viewBox="0 0 800 190"
+  version="1.0">
+  <rect id="panel-top" x="0" y="0" width="800" height="2"/>
+
+  <rect id="TLDE" x="12.000" y="6" width="48.267" height="32"/>
+  <rect id="AE01" x="64.267" y="6" width="48.267" height="32"/>
+  <rect id="AE02" x="116.533" y="6" width="48.267" height="32"/>
+  <rect id="AE03" x="168.800" y="6" width="48.267" height="32"/>
+  <rect id="AE04" x="221.067" y="6" width="48.267" height="32"/>
+  <rect id="AE05" x="273.333" y="6" width="48.267" height="32"/>
+  <rect id="AE06" x="325.600" y="6" width="48.267" height="32"/>
+  <rect id="AE07" x="377.867" y="6" width="48.267" height="32"/>
+  <rect id="AE08" x="430.133" y="6" width="48.267" height="32"/>
+  <rect id="AE09" x="482.400" y="6" width="48.267" height="32"/>
+  <rect id="AE10" x="534.667" y="6" width="48.267" height="32"/>
+  <rect id="AE11" x="586.933" y="6" width="48.267" height="32"/>
+  <rect id="AE12" x="639.200" y="6" width="48.267" height="32"/>
+  <rect id="BKSP" x="691.467" y="6" width="96.533" height="32"/>
+
+  <rect id="TAB" x="12.000" y="42" width="74.897" height="32"/>
+  <rect id="AD01" x="90.897" y="42" width="49.931" height="32"/>
+  <rect id="AD02" x="144.828" y="42" width="49.931" height="32"/>
+  <rect id="AD03" x="198.759" y="42" width="49.931" height="32"/>
+  <rect id="AD04" x="252.690" y="42" width="49.931" height="32"/>
+  <rect id="AD05" x="306.621" y="42" width="49.931" height="32"/>
+  <rect id="AD06" x="360.552" y="42" width="49.931" height="32"/>
+  <rect id="AD07" x="414.483" y="42" width="49.931" height="32"/>
+  <rect id="AD08" x="468.414" y="42" width="49.931" height="32"/>
+  <rect id="AD09" x="522.345" y="42" width="49.931" height="32"/>
+  <rect id="AD10" x="576.276" y="42" width="49.931" height="32"/>
+  <rect id="AD11" x="630.207" y="42" width="49.931" height="32"/>
+  <rect id="AD12" x="684.138" y="42" width="49.931" height="32"/>
+  <rect id="BKSL" x="738.069" y="42" width="49.931" height="32"/>
+
+  <rect id="CAPS" x="12.000" y="78" width="76.364" height="32"/>
+  <rect id="AC01" x="92.364" y="78" width="50.909" height="32"/>
+  <rect id="AC02" x="147.273" y="78" width="50.909" height="32"/>
+  <rect id="AC03" x="202.182" y="78" width="50.909" height="32"/>
+  <rect id="AC04" x="257.091" y="78" width="50.909" height="32"/>
+  <rect id="AC05" x="312.000" y="78" width="50.909" height="32"/>
+  <rect id="AC06" x="366.909" y="78" width="50.909" height="32"/>
+  <rect id="AC07" x="421.818" y="78" width="50.909" height="32"/>
+  <rect id="AC08" x="476.727" y="78" width="50.909" height="32"/>
+  <rect id="AC09" x="531.636" y="78" width="50.909" height="32"/>
+  <rect id="AC10" x="586.545" y="78" width="50.909" height="32"/>
+  <rect id="AC11" x="641.455" y="78" width="50.909" height="32"/>
+  <rect id="RTRN" x="696.364" y="78" width="91.636" height="32"/>
+
+  <rect id="LFSH" x="12.000" y="114" width="72.400" height="32"/>
+  <rect id="shift-l2-left" x="88.400" y="114" width="48.267" height="32"/>
+  <rect id="AB01" x="140.667" y="114" width="48.267" height="32"/>
+  <rect id="AB02" x="192.933" y="114" width="48.267" height="32"/>
+  <rect id="AB03" x="245.200" y="114" width="48.267" height="32"/>
+  <rect id="AB04" x="297.467" y="114" width="48.267" height="32"/>
+  <rect id="AB05" x="349.733" y="114" width="48.267" height="32"/>
+  <rect id="AB06" x="402.000" y="114" width="48.267" height="32"/>
+  <rect id="AB07" x="454.267" y="114" width="48.267" height="32"/>
+  <rect id="AB08" x="506.533" y="114" width="48.267" height="32"/>
+  <rect id="AB09" x="558.800" y="114" width="48.267" height="32"/>
+  <rect id="AB10" x="611.067" y="114" width="48.267" height="32"/>
+  <rect id="shift-l2-right" x="663.333" y="114" width="48.267" height="32"/>
+  <rect id="RTSH" x="715.600" y="114" width="72.400" height="32"/>
+
+  <rect id="emoji-key" x="12.000" y="150" width="85.455" height="32"/>
+  <rect id="y-hint" x="101.455" y="150" width="62.667" height="32"/>
+  <rect id="SPCE" x="168.121" y="150" width="330.424" height="32"/>
+  <rect id="LEFT" x="502.545" y="150" width="56.970" height="32"/>
+  <rect id="RGHT" x="563.515" y="150" width="56.970" height="32"/>
+  <rect id="paste-key" x="624.485" y="150" width="85.455" height="32"/>
+  <rect id="hide" x="713.939" y="150" width="74.061" height="32"/>
+</svg>

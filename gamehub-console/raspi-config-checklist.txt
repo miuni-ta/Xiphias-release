@@ -1,0 +1,42 @@
+GameHub Console - raspi-config checklist
+========================================
+
+Recommended image:
+- Raspberry Pi OS (64-bit) with desktop
+
+Open raspi-config:
+- sudo raspi-config
+
+Set these items:
+
+1. System Options
+- Wireless LAN: set your country and Wi-Fi if not already set
+- Hostname: set your device name
+- Boot / Auto Login: Console Autologin
+
+2. Interface Options
+- SSH: Enable
+- I2C: enable this if you are using the Waveshare UPS HAT (B) battery reader
+- SPI: leave disabled unless another accessory needs it
+
+3. Localization Options
+- Locale: your language
+- Timezone: your timezone
+- WLAN Country: your actual country
+
+4. Performance Options
+- Leave defaults unless your cooling is proven good
+
+5. Advanced Options
+- Audio: choose the output you actually use
+
+After raspi-config:
+- sudo reboot
+
+After reboot:
+- cd /home/pi/Xiphias/release/gamehub-console
+- bash install_gamehub_console.sh
+
+Notes:
+- Current Raspberry Pi OS is Debian 13 (Trixie) based. That version string is expected.
+- This package boots to kiosk through a systemd service. It does not need the normal desktop session at login.

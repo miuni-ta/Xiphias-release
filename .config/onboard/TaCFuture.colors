@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+
+<color_scheme name="TaCFuture" format="2.1">
+    <window type="key-popup">
+        <color element="border" rgb="#41f0ff" opacity="1.0"/>
+    </window>
+
+    <layer> <color element="background" rgb="#04070d" opacity="0.96"/> </layer>
+    <layer> <color element="background" rgb="#0a1220" opacity="0.93"/> </layer>
+    <layer> <color element="background" rgb="#0f1b2f" opacity="0.90"/> </layer>
+
+    <key_group>
+        <color element="fill" rgb="#13233b"/>
+        <color element="stroke" rgb="#4af2ff"/>
+        <color element="label" rgb="#e9fbff"/>
+        icon0
+
+        <key_group>
+            <color element="fill" rgb="#152d4c"/>
+            <color element="stroke" rgb="#68f6ff"/>
+            <color element="label" rgb="#f4ffff"/>
+            pressed="true"
+        </key_group>
+
+        <key_group>
+            <color element="fill" rgb="#101a2d"/>
+            <color element="stroke" rgb="#2f95d1"/>
+            <color element="label" rgb="#b7deff"/>
+            icon3,
+            RCTL, LCTL, RALT, LALT, LWIN, CAPS,
+            LFSH, RTSH, NMLK,
+            MENU, RWIN, BKSP, TAB, RTRN,
+            KPDL, KPEN, KPSU, KPDV, KPAD, KPMU,
+            LEFT, RGHT, UP, DOWN, INS, DELE, HOME, END, PGUP, PGDN,
+            F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+            Prnt, Pause, ESC, Scroll,
+            secondaryclick, middleclick, doubleclick, dragclick, hoverclick,
+            hide, showclick, move, layer,
+            quit, inputline
+        </key_group>
+
+        <key_group>
+            <color element="fill" rgb="#0d1523"/>
+            <color element="stroke" rgb="#203f61"/>
+            <color element="label" rgb="#8eb8d8"/>
+            prediction
+            <key_group>
+                <color element="fill" rgb="#09101b" opacity="0.88"/>
+                wordlist, pause-learning.wordlist, language.wordlist, hide.wordlist
+            </key_group>
+        </key_group>
+
+        <key_group>
+            <color element="fill" rgb="#17335a"/>
+            <color element="stroke" rgb="#82f7ff"/>
+            <color element="label" rgb="#f4ffff"/>
+            settings, m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15
+        </key_group>
+    </key_group>
+</color_scheme>

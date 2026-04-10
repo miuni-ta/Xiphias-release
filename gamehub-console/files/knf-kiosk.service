@@ -1,0 +1,32 @@
+[Unit]
+Description=KNF GameHub kiosk
+After=systemd-user-sessions.service network-online.target sound.target
+Wants=network-online.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=HOME=/home/pi/Xiphias/release
+Environment=XDG_CONFIG_HOME=/home/pi/Xiphias/release/.config
+Environment=XDG_DATA_HOME=/home/pi/Xiphias/release/.local/share
+Environment=XDG_CACHE_HOME=/home/pi/Xiphias/release/.cache
+Environment=DISPLAY=:0
+EnvironmentFile=-/etc/default/locale
+WorkingDirectory=/home/pi/Xiphias/release
+ExecStart=/usr/bin/startx /home/pi/Xiphias/release/.xinitrc -- :0 vt1 -keeptty
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+Alias=display-manager.service

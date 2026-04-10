@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0c0f">
+  <title>GameHub Console Shell</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app" class="console-shell">
+    <header class="status-bar" aria-label="System status">
+      <div class="status-cluster status-left">
+        <span class="clock-chip" aria-hidden="true">
+          <svg class="clock-icon" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8"></circle>
+            <path d="M12 8v4"></path>
+            <path d="M12 12l3 2"></path>
+          </svg>
+        </span>
+        <time id="live-clock" class="clock" datetime="" aria-live="polite">--:-- --</time>
+      </div>
+
+      <div class="status-cluster status-right">
+        <span class="status-icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M5 13.5a10.25 10.25 0 0 1 14 0"></path>
+            <path d="M8 16.5a6.25 6.25 0 0 1 8 0"></path>
+            <path d="M11 19.5a2.25 2.25 0 0 1 2 0"></path>
+          </svg>
+        </span>
+        <span class="status-icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M11 4v16"></path>
+            <path d="M11 4l6 5-6 3"></path>
+            <path d="M11 20l6-5-6-3"></path>
+          </svg>
+        </span>
+        <span class="status-icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M5 9.5h3.25l4.25-3.5v12l-4.25-3.5H5z"></path>
+            <path d="M16 9a5 5 0 0 1 0 6"></path>
+            <path d="M18.5 6.5a8.5 8.5 0 0 1 0 11"></path>
+          </svg>
+        </span>
+        <div class="battery-group" aria-label="Battery level">
+          <span id="battery-label" class="sr-only" aria-live="polite">87%</span>
+          <span class="battery-icon" aria-hidden="true">
+            <span id="battery-fill" class="battery-fill"></span>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-stage" aria-label="Future content area">
+      <!-- Future content is intentionally empty for now. -->
+    </main>
+
+    <nav class="nav-bar" aria-label="Controller navigation">
+      <div class="nav-side nav-left">
+        <div class="nav-hint">
+          <span class="action-button action-button--green" aria-hidden="true">A</span>
+          <span class="hint-text">Select</span>
+        </div>
+
+        <div class="nav-hint">
+          <span class="nav-icon-wrap" aria-hidden="true">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+              <path d="M8 10H6.75A3.75 3.75 0 0 0 3 13.75v.5A3.75 3.75 0 0 0 6.75 18h1.5l1.75-2h4l1.75 2h1.5A3.75 3.75 0 0 0 21 14.25v-.5A3.75 3.75 0 0 0 17.25 10H16l-2-2H10z"></path>
+              <path d="M8 12.25v3.5"></path>
+              <path d="M6.25 14h3.5"></path>
+              <path d="M15.75 13h.01"></path>
+              <path d="M17.75 15h.01"></path>
+            </svg>
+          </span>
+          <span class="hint-text">Navigate</span>
+        </div>
+      </div>
+
+      <div class="nav-side nav-right">
+        <div class="nav-hint">
+          <span class="action-button action-button--blue action-button--icon" aria-hidden="true">
+            <svg class="menu-icon" viewBox="0 0 24 24">
+              <path d="M6 7.5h12"></path>
+              <path d="M6 12h12"></path>
+              <path d="M6 16.5h12"></path>
+            </svg>
+          </span>
+          <span class="hint-text">Quick Menu</span>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>GameHub</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --shell-bg: #000000;
+      --shell-panel: rgba(10, 12, 18, 0.88);
+      --shell-border: rgba(245, 121, 58, 0.28);
+      --shell-text: #f5f7fb;
+      --shell-muted: rgba(245, 247, 251, 0.72);
+      --shell-accent-a: #f0184e;
+      --shell-accent-b: #f5793a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top, rgba(240, 24, 78, 0.18), transparent 38%),
+        radial-gradient(circle at bottom, rgba(245, 121, 58, 0.14), transparent 42%),
+        var(--shell-bg);
+      cursor: default;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: pan-x pan-y;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: "DejaVu Sans", "Segoe UI", sans-serif;
+    }
+
+    .viewport {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top, rgba(240, 24, 78, 0.12), transparent 38%),
+        radial-gradient(circle at bottom, rgba(245, 121, 58, 0.12), transparent 42%),
+        var(--shell-bg);
+      cursor: default;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: pan-x pan-y;
+    }
+
+    .frame {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #0b0c10;
+      cursor: default;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: pan-x pan-y;
+    }
+
+    .loader {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.4)),
+        transparent;
+      z-index: 2;
+      transition: opacity 180ms ease, visibility 180ms ease;
+    }
+
+    .loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-panel {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      width: min(100%, 360px);
+      padding: 24px 26px;
+      border: 1px solid var(--shell-border);
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(20, 22, 28, 0.96), rgba(9, 10, 14, 0.92));
+      box-shadow:
+        0 26px 50px rgba(0, 0, 0, 0.34),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      text-align: center;
+    }
+
+    .loader-logo {
+      width: min(100%, 248px);
+      height: auto;
+      animation: logo-breathe 1.4s ease-in-out infinite;
+    }
+
+    .loader-title {
+      margin: 0;
+      color: var(--shell-text);
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .loader-copy {
+      margin: 0;
+      color: var(--shell-muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .loader-bar {
+      position: relative;
+      width: 100%;
+      height: 4px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .loader-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 42%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--shell-accent-a), var(--shell-accent-b));
+      animation: loader-slide 1.2s ease-in-out infinite;
+    }
+
+    .fallback {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.9);
+      color: var(--shell-text);
+      text-align: center;
+      font-size: 16px;
+      line-height: 1.45;
+      z-index: 3;
+      visibility: hidden;
+    }
+
+    .fallback.is-visible {
+      visibility: visible;
+    }
+
+    .fallback a {
+      color: #7dd3fc;
+    }
+
+    @keyframes loader-slide {
+      0% {
+        transform: translateX(-115%);
+      }
+      100% {
+        transform: translateX(260%);
+      }
+    }
+
+    @keyframes logo-breathe {
+      0%,
+      100% {
+        opacity: 0.94;
+        transform: translateY(0);
+      }
+      50% {
+        opacity: 1;
+        transform: translateY(-2px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="viewport" aria-label="Scaled GameHub website">
+    <iframe
+      id="site-frame"
+      class="frame"
+      title="GameHub website"
+      referrerpolicy="strict-origin-when-cross-origin"
+      allow="autoplay; clipboard-read; clipboard-write; fullscreen; gamepad"
+      loading="eager"></iframe>
+  </main>
+
+  <div id="loader" class="loader" aria-live="polite">
+    <div class="loader-panel">
+      <img class="loader-logo" src="assets/images/gbl_logo.png" alt="">
+      <p class="loader-title">Launching GameHub</p>
+      <p class="loader-copy">Opening the kiosk shell and loading the latest handheld page.</p>
+      <div class="loader-bar" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <div id="fallback" class="fallback" role="alert" aria-live="polite">
+    <div>
+      <p>The remote GameHub page could not be loaded inside the kiosk wrapper.</p>
+      <p><a id="fallback-link" href="" target="_blank" rel="noreferrer">Open the website directly</a></p>
+    </div>
+  </div>
+
+  <script>
+    const frame = document.getElementById("site-frame");
+    const loader = document.getElementById("loader");
+    const fallback = document.getElementById("fallback");
+    const fallbackLink = document.getElementById("fallback-link");
+    const hashTarget = window.location.hash.slice(1).trim();
+    const defaultTarget = "https://handheld.knfstudios.com/?mode=handheld";
+    const targetUrl = hashTarget || defaultTarget;
+    let frameLoaded = false;
+
+    function hideLoader() {
+      loader.classList.add("is-hidden");
+    }
+
+    function showFallback() {
+      if (frameLoaded) {
+        return;
+      }
+      hideLoader();
+      fallback.classList.add("is-visible");
+    }
+
+    fallbackLink.href = targetUrl;
+    frame.addEventListener("load", () => {
+      frameLoaded = true;
+      hideLoader();
+      fallback.classList.remove("is-visible");
+    });
+    frame.src = targetUrl;
+    window.setTimeout(showFallback, 12000);
+  </script>
+</body>
+</html>

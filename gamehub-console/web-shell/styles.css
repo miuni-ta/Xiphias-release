@@ -1,0 +1,261 @@
+:root {
+  --screen-bg: #020304;
+  --stage-bg: #000000;
+  --status-bg: #0a0c0f;
+  --nav-bg: rgba(9, 11, 15, 0.84);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f6f8fb;
+  --text-soft: rgba(246, 248, 251, 0.84);
+  --status-icon: #c4ccd8;
+  --green: #2ad06a;
+  --green-dark: #188a46;
+  --blue: #2a7fff;
+  --blue-dark: #154ca9;
+  --status-height: 24px;
+  --nav-height: 54px;
+  --side-padding: 10px;
+  --button-size: 26px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #000000;
+  color: var(--text);
+  font-family: "DejaVu Sans", "Noto Sans", "Segoe UI", Arial, sans-serif;
+  user-select: none;
+}
+
+.console-shell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  min-width: 800px;
+  min-height: 480px;
+  overflow: hidden;
+  background: var(--screen-bg);
+}
+
+.status-bar,
+.nav-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--side-padding);
+  color: var(--text);
+  z-index: 10;
+}
+
+.status-bar {
+  top: 0;
+  height: var(--status-height);
+  background: var(--status-bg);
+  font-size: 11px;
+}
+
+.nav-bar {
+  bottom: 0;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.main-stage {
+  position: fixed;
+  top: var(--status-height);
+  right: 0;
+  bottom: var(--nav-height);
+  left: 0;
+  background: var(--stage-bg);
+}
+
+.status-cluster,
+.nav-side,
+.nav-hint,
+.battery-group {
+  display: flex;
+  align-items: center;
+}
+
+.status-left {
+  gap: 4px;
+}
+
+.status-right {
+  gap: 12px;
+}
+
+.clock-chip,
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--status-icon);
+}
+
+.clock-chip {
+  width: 14px;
+  height: 14px;
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.icon,
+.clock-icon,
+.nav-icon,
+.menu-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon,
+.clock-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.icon {
+  stroke-width: 1.8;
+}
+
+.clock-icon {
+  stroke-width: 1.7;
+}
+
+.clock {
+  min-width: 58px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+.battery-group {
+  gap: 0;
+}
+
+.battery-icon {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 10px;
+  padding: 1px;
+  border: 1.4px solid var(--status-icon);
+  border-radius: 3px;
+}
+
+.battery-icon::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: -3px;
+  width: 2px;
+  height: 4px;
+  border-radius: 0 2px 2px 0;
+  background: var(--status-icon);
+}
+
+.battery-fill {
+  display: block;
+  width: 72%;
+  height: 100%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #8bf1b1 0%, var(--green) 100%);
+  transition: width 160ms ease, background 160ms ease;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nav-side {
+  gap: 16px;
+}
+
+.nav-hint {
+  gap: 7px;
+  color: var(--text-soft);
+}
+
+.hint-text {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.action-button,
+.nav-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-button {
+  width: var(--button-size);
+  height: var(--button-size);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.action-button--green {
+  background: linear-gradient(180deg, var(--green) 0%, var(--green-dark) 100%);
+}
+
+.action-button--blue {
+  background: linear-gradient(180deg, var(--blue) 0%, var(--blue-dark) 100%);
+}
+
+.action-button--icon .menu-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.nav-icon-wrap {
+  width: 20px;
+  height: 20px;
+  color: var(--text);
+}
+
+.nav-icon {
+  width: 18px;
+  height: 18px;
+}

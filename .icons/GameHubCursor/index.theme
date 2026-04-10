@@ -1,0 +1,4 @@
+[Icon Theme]
+Name=GameHubCursor
+Comment=Custom GameHub kiosk cursor
+Inherits=Adwaita

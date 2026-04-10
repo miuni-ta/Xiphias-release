@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+
+<color_scheme name="gamepad_dark" format="2.1">
+  <window type="key-popup">
+    <color element="border" rgb="#4a4a4a" opacity="1.0"/>
+  </window>
+
+  <layer>
+    <color element="background" rgb="#2c2c2c" opacity="1.0"/>
+  </layer>
+
+    <key_group>
+      <color element="fill" rgb="#3d3d3d" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.96"/>
+      <color element="secondary-label" rgb="#e8e8e8" opacity="0.82"/>
+
+    <color element="fill" rgb="#4a4a4a" opacity="1.0" prelight="true"/>
+    <color element="stroke" rgb="#555555" opacity="1.0" prelight="true"/>
+    <color element="label" rgb="#ffffff" opacity="1.0" prelight="true"/>
+
+    <color element="fill" rgb="#505050" opacity="1.0" pressed="true"/>
+    <color element="stroke" rgb="#5a5a5a" opacity="1.0" pressed="true"/>
+    <color element="label" rgb="#ffffff" opacity="1.0" pressed="true"/>
+
+    <color element="fill" rgb="#f0f0f0" opacity="1.0" scanned="true"/>
+    <color element="stroke" rgb="#f0f0f0" opacity="0.0" scanned="true"/>
+    <color element="label" rgb="#2c2c2c" opacity="1.0" scanned="true"/>
+
+    <key_group>
+      <color element="fill" rgb="#373737" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.94"/>
+      modifier-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#373737" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.94"/>
+      <color element="fill" rgb="#444444" opacity="1.0" active="true"/>
+      <color element="stroke" rgb="#5a5a5a" opacity="1.0" active="true"/>
+      <color element="label" rgb="#ffffff" opacity="1.0" active="true"/>
+      shift-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#373737" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.94"/>
+      <color element="fill" rgb="#4a4a4a" opacity="1.0" locked="true"/>
+      <color element="stroke" rgb="#5a5a5a" opacity="1.0" locked="true"/>
+      <color element="label" rgb="#ffffff" opacity="1.0" locked="true"/>
+      caps-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#373737" opacity="1.0"/>
+      <color element="stroke" rgb="#4f4f4f" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.96"/>
+      <color element="fill" rgb="#4a4a4a" opacity="1.0" pressed="true"/>
+      <color element="stroke" rgb="#5a5a5a" opacity="1.0" pressed="true"/>
+      action-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#262626" opacity="1.0"/>
+      <color element="stroke" rgb="#424242" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.92"/>
+      utility-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#262626" opacity="1.0"/>
+      <color element="stroke" rgb="#424242" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.92"/>
+      utility-pink
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#262626" opacity="1.0"/>
+      <color element="stroke" rgb="#424242" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.72"/>
+      utility-hide
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#3d3d3d" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="label" rgb="#e8e8e8" opacity="0.96"/>
+      space-key
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#000000" opacity="0.0"/>
+      <color element="stroke" rgb="#000000" opacity="0.0"/>
+      <color element="label" rgb="#000000" opacity="0.0"/>
+      utility-gap
+    </key_group>
+
+    <key_group>
+      <color element="fill" rgb="#4a4a4a" opacity="1.0"/>
+      <color element="stroke" rgb="#4a4a4a" opacity="0.0"/>
+      <color element="label" rgb="#4a4a4a" opacity="0.0"/>
+      panel-top-border
+    </key_group>
+  </key_group>
+</color_scheme>

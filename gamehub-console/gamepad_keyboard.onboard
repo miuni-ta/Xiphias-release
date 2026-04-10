@@ -1,0 +1,72 @@
+<?xml version="1.0" ?>
+
+<keyboard
+  id="gamepad_keyboard"
+  format="3.2"
+  section="system"
+  summary="GameHub console keyboard for 800x480 — compact dark console layout">
+
+  <include file="/usr/share/onboard/layouts/key_defs.xml"/>
+
+  <panel filename="gamepad_keyboard.svg" layer="alpha">
+    <key id="panel-top" group="panel-decoration" theme_id="panel-top-border" scannable="false" sensitive="false" show_border="false"/>
+
+    <key id="TLDE" group="alpha" label_margin="2,5"/>
+    <key id="AE01" group="alpha" label_margin="2,5"/>
+    <key id="AE02" group="alpha" label_margin="2,5"/>
+    <key id="AE03" group="alpha" label_margin="2,5"/>
+    <key id="AE04" group="alpha" label_margin="2,5"/>
+    <key id="AE05" group="alpha" label_margin="2,5"/>
+    <key id="AE06" group="alpha" label_margin="2,5"/>
+    <key id="AE07" group="alpha" label_margin="2,5"/>
+    <key id="AE08" group="alpha" label_margin="2,5"/>
+    <key id="AE09" group="alpha" label_margin="2,5"/>
+    <key id="AE10" group="alpha" label_margin="2,5"/>
+    <key id="AE11" group="alpha" label_margin="2,5"/>
+    <key id="AE12" group="alpha" label_margin="2,5"/>
+    <key id="BKSP" group="icon-key" theme_id="action-key" image="osk_backspace.png" label="" label_x_align="0.5"/>
+
+    <key id="AD01" group="alpha" label_margin="2,5"/>
+    <key id="AD02" group="alpha" label_margin="2,5"/>
+    <key id="AD03" group="alpha" label_margin="2,5"/>
+    <key id="AD04" group="alpha" label_margin="2,5"/>
+    <key id="AD05" group="alpha" label_margin="2,5"/>
+    <key id="AD06" group="alpha" label_margin="2,5"/>
+    <key id="AD07" group="alpha" label_margin="2,5"/>
+    <key id="AD08" group="alpha" label_margin="2,5"/>
+    <key id="AD09" group="alpha" label_margin="2,5"/>
+    <key id="AD10" group="alpha" label_margin="2,5"/>
+    <key id="AD11" group="alpha" label_margin="2,5"/>
+    <key id="AD12" group="alpha" label_margin="2,5"/>
+    <key id="BKSL" group="alpha" label_margin="2,5"/>
+
+    <key id="CAPS" group="icon-key" theme_id="caps-key" image="osk_caps.png" label="" label_x_align="0.5" label_margin="23,20.5"/>
+    <key id="AC01" group="alpha" label_margin="2,5"/>
+    <key id="AC02" group="alpha" label_margin="2,5"/>
+    <key id="AC03" group="alpha" label_margin="2,5"/>
+    <key id="AC04" group="alpha" label_margin="2,5"/>
+    <key id="AC05" group="alpha" label_margin="2,5"/>
+    <key id="AC06" group="alpha" label_margin="2,5"/>
+    <key id="AC07" group="alpha" label_margin="2,5"/>
+    <key id="AC08" group="alpha" label_margin="2,5"/>
+    <key id="AC09" group="alpha" label_margin="2,5"/>
+    <key id="AC10" group="alpha" label_margin="2,5"/>
+    <key id="AC11" group="alpha" label_margin="2,5"/>
+    <key id="RTRN" group="icon-key" theme_id="action-key" image="osk_enter.png" label="" label_x_align="0.5" label_margin="28,20.5"/>
+
+    <key id="AB01" group="alpha" label_margin="2,5"/>
+    <key id="AB02" group="alpha" label_margin="2,5"/>
+    <key id="AB03" group="alpha" label_margin="2,5"/>
+    <key id="AB04" group="alpha" label_margin="2,5"/>
+    <key id="AB05" group="alpha" label_margin="2,5"/>
+    <key id="AB06" group="alpha" label_margin="2,5"/>
+    <key id="AB07" group="alpha" label_margin="2,5"/>
+    <key id="AB08" group="alpha" label_margin="2,5"/>
+    <key id="AB09" group="alpha" label_margin="2,5"/>
+    <key id="AB10" group="alpha" label_margin="2,5"/>
+
+    <key id="LFSH" group="icon-key" theme_id="shift-key" image="osk_shift.png" label="" label_x_align="0.5"/>
+    <key id="SPCE" group="spacebar" theme_id="space-key"/>
+    <key id="RTSH" group="icon-key" theme_id="shift-key" image="osk_shift.png" label="" label_x_align="0.5"/>
+  </panel>
+</keyboard>

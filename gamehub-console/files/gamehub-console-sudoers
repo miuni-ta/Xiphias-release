@@ -1,0 +1,1 @@
+pi ALL=(root) NOPASSWD: /usr/sbin/shutdown, /bin/systemctl poweroff, /bin/systemctl reboot, /usr/bin/nmcli, /usr/bin/bluetoothctl, /home/pi/Xiphias/release/gamehub-console/set_backlight.sh

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=GameHub Console
+Description=GameHub Console boot and shutdown splash.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/gamehub-console
+ScriptFile=/usr/share/plymouth/themes/gamehub-console/gamehub-console.script
