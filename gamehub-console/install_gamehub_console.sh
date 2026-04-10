@@ -4,17 +4,126 @@ set -euo pipefail
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BASE_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
 RELEASE_ROOT="$(cd "${BASE_DIR}/.." && pwd)"
-USER_NAME="${SUDO_USER:-pi}"
+INSTALL_MODE="live"
+SKIP_APT_UPDATE="${XIPHIAS_SKIP_APT_UPDATE:-0}"
+USER_NAME="${SUDO_USER:-${XIPHIAS_INSTALL_USER:-pi}}"
 HOME_DIR="/home/${USER_NAME}"
+
+usage() {
+  cat <<EOF
+Usage: bash ${BASE_DIR}/install_gamehub_console.sh [options]
+
+Options:
+  --image-mode       Provision a mounted image or chroot rootfs as root.
+  --skip-apt-update  Skip apt update before installing packages.
+  --help             Show this help text.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --image-mode)
+      INSTALL_MODE="image"
+      ;;
+    --skip-apt-update)
+      SKIP_APT_UPDATE=1
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 if [[ ! -d "${BASE_DIR}" ]]; then
   echo "Missing ${BASE_DIR}"
   exit 1
 fi
 
-if [[ "$(id -un)" == "root" ]]; then
+run_root() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+run_as_user() {
+  local target_user="$1"
+  shift
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    runuser -u "${target_user}" -- "$@"
+  else
+    sudo -u "${target_user}" "$@"
+  fi
+}
+
+ensure_group() {
+  local group_name="$1"
+
+  if getent group "${group_name}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  run_root groupadd --system "${group_name}"
+}
+
+boot_config_path() {
+  local candidate
+  for candidate in /boot/firmware/config.txt /boot/config.txt; do
+    if [[ -f "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+maybe_enable_i2c() {
+  local config_path battery_command
+
+  battery_command="$(
+    sed -n 's/^BATTERY_COMMAND=//p' "${BASE_DIR}/console.env" 2>/dev/null |
+      sed -n '1{s/^"//;s/"$//;p;}'
+  )"
+
+  if [[ "${battery_command}" != *waveshare_ups_battery.py* ]]; then
+    return 0
+  fi
+
+  config_path="$(boot_config_path || true)"
+  if [[ -z "${config_path}" ]]; then
+    return 0
+  fi
+
+  if grep -q '^dtparam=i2c_arm=' "${config_path}"; then
+    run_root sed -i 's/^dtparam=i2c_arm=.*/dtparam=i2c_arm=on/' "${config_path}"
+  else
+    printf '\ndtparam=i2c_arm=on\n' | run_root tee -a "${config_path}" >/dev/null
+  fi
+}
+
+if [[ "${INSTALL_MODE}" == "live" && "$(id -un)" == "root" ]]; then
   echo "Run this script as the regular user, not as root:"
   echo "bash ${BASE_DIR}/install_gamehub_console.sh"
+  exit 1
+fi
+
+if [[ "${INSTALL_MODE}" == "image" && "$(id -u)" -ne 0 ]]; then
+  echo "Run image mode as root inside the image rootfs:"
+  echo "bash ${BASE_DIR}/install_gamehub_console.sh --image-mode"
+  exit 1
+fi
+
+if ! id -u "${USER_NAME}" >/dev/null 2>&1; then
+  echo "Missing user: ${USER_NAME}" >&2
   exit 1
 fi
 
@@ -41,14 +150,19 @@ sync_file_if_needed() {
 echo "== GameHub Console installer =="
 echo
 echo "[1/9] Installing packages..."
-sudo apt update
-sudo apt install -y \
+if (( ! SKIP_APT_UPDATE )); then
+  run_root apt update
+fi
+run_root apt install -y \
   chromium \
+  git \
   openbox \
+  unclutter \
   xdotool \
   xinit \
   xserver-xorg \
   python3-evdev \
+  python3-gi \
   python3-pygame \
   python3-smbus2 \
   python3-tk \
@@ -66,11 +180,14 @@ sudo apt install -y \
   upower
 
 echo "[2/9] Ensuring group access..."
-sudo usermod -aG input,video,render,audio,netdev,bluetooth,i2c "${USER_NAME}"
+for group_name in input video render audio netdev bluetooth i2c; do
+  ensure_group "${group_name}"
+done
+run_root usermod -aG input,video,render,audio,netdev,bluetooth,i2c "${USER_NAME}"
 
 echo "[3/9] Configuring X11 wrapper..."
-sudo mkdir -p /etc/X11
-cat <<'EOF' | sudo tee /etc/X11/Xwrapper.config >/dev/null
+run_root mkdir -p /etc/X11
+cat <<'EOF' | run_root tee /etc/X11/Xwrapper.config >/dev/null
 allowed_users=anybody
 needs_root_rights=yes
 EOF
@@ -84,10 +201,12 @@ mkdir -p "${RELEASE_ROOT}/.local/share/onboard/layouts"
 mkdir -p "${RELEASE_ROOT}/.local/share/onboard/themes"
 mkdir -p "${BASE_DIR}/logs"
 
-sync_dir_if_needed "${HOME_DIR}/.config" "${RELEASE_ROOT}/.config"
-sync_dir_if_needed "${HOME_DIR}/.icons" "${RELEASE_ROOT}/.icons"
-sync_dir_if_needed "${HOME_DIR}/.local" "${RELEASE_ROOT}/.local"
-sync_file_if_needed "${HOME_DIR}/.xinitrc" "${RELEASE_ROOT}/.xinitrc"
+if [[ "${INSTALL_MODE}" == "live" ]]; then
+  sync_dir_if_needed "${HOME_DIR}/.config" "${RELEASE_ROOT}/.config"
+  sync_dir_if_needed "${HOME_DIR}/.icons" "${RELEASE_ROOT}/.icons"
+  sync_dir_if_needed "${HOME_DIR}/.local" "${RELEASE_ROOT}/.local"
+  sync_file_if_needed "${HOME_DIR}/.xinitrc" "${RELEASE_ROOT}/.xinitrc"
+fi
 
 install -m 755 "${BASE_DIR}/files/xinitrc" "${RELEASE_ROOT}/.xinitrc"
 install -m 755 "${BASE_DIR}/files/openbox/autostart" "${RELEASE_ROOT}/.config/openbox/autostart"
@@ -120,28 +239,37 @@ enable-background-transparency=false
 EOF
 
 echo "[5/9] Configuring boot splash..."
-sudo bash "${BASE_DIR}/configure_boot_splash.sh"
+run_root bash "${BASE_DIR}/configure_boot_splash.sh"
+maybe_enable_i2c
 
 echo "[6/9] Installing service..."
-sudo install -m 644 "${BASE_DIR}/files/knf-kiosk.service" /etc/systemd/system/knf-kiosk.service
-sudo install -d -m 755 /etc/systemd/user-environment-generators
-sudo install -m 755 "${BASE_DIR}/files/90-xiphias-release-home" /etc/systemd/user-environment-generators/90-xiphias-release-home
-sudo install -m 440 "${BASE_DIR}/files/gamehub-console-sudoers" /etc/sudoers.d/gamehub-console
-sudo install -m 644 "${BASE_DIR}/files/gamehub-console-backup.cron" /etc/cron.d/gamehub-console-backup
+run_root install -m 644 "${BASE_DIR}/files/knf-kiosk.service" /etc/systemd/system/knf-kiosk.service
+run_root install -d -m 755 /etc/systemd/user-environment-generators
+run_root install -m 755 "${BASE_DIR}/files/90-xiphias-release-home" /etc/systemd/user-environment-generators/90-xiphias-release-home
+run_root install -m 440 "${BASE_DIR}/files/gamehub-console-sudoers" /etc/sudoers.d/gamehub-console
+run_root install -m 644 "${BASE_DIR}/files/gamehub-console-backup.cron" /etc/cron.d/gamehub-console-backup
 
 echo "[7/9] Enabling services..."
-sudo systemctl daemon-reload
-sudo systemctl enable knf-kiosk.service
-sudo systemctl enable NetworkManager
-sudo systemctl disable lightdm.service >/dev/null 2>&1 || true
-XDG_RUNTIME_DIR="/run/user/$(id -u)"
-if [[ -d "${XDG_RUNTIME_DIR}" ]]; then
-  sudo -u "${USER_NAME}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" systemctl --user daemon-reload || true
+if [[ "${INSTALL_MODE}" == "live" ]]; then
+  run_root systemctl daemon-reload
+  run_root systemctl enable knf-kiosk.service
+  run_root systemctl enable NetworkManager
+  run_root systemctl disable lightdm.service >/dev/null 2>&1 || true
+  XDG_RUNTIME_DIR="/run/user/$(id -u)"
+  if [[ -d "${XDG_RUNTIME_DIR}" ]]; then
+    run_as_user "${USER_NAME}" env XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" systemctl --user daemon-reload || true
+  fi
+else
+  echo "Image mode: service enablement is handled by the image builder."
 fi
 
 echo "[8/9] Setting boot target..."
-sudo systemctl set-default multi-user.target
-sudo raspi-config nonint do_boot_behaviour B2 || true
+if [[ "${INSTALL_MODE}" == "live" ]]; then
+  run_root systemctl set-default multi-user.target
+  run_root raspi-config nonint do_boot_behaviour B2 || true
+else
+  echo "Image mode: boot target is handled by the image builder."
+fi
 
 echo "[9/9] Final checks..."
 chmod +x \
@@ -157,10 +285,14 @@ chmod +x \
 
 echo
 echo "Install complete."
-echo "Next step: sudo reboot"
-echo
-echo "After reboot, the Pi should:"
-echo "- boot straight to kiosk"
-echo "- keep the GameHub splash on-screen during early boot and shutdown"
-echo "- launch Chromium on your GameHub URL"
-echo "- keep touch and gamepad input available in the kiosk"
+if [[ "${INSTALL_MODE}" == "live" ]]; then
+  echo "Next step: sudo reboot"
+  echo
+  echo "After reboot, the Pi should:"
+  echo "- boot straight to kiosk"
+  echo "- keep the GameHub splash on-screen during early boot and shutdown"
+  echo "- launch Chromium on your GameHub URL"
+  echo "- keep touch and gamepad input available in the kiosk"
+else
+  echo "Image mode complete."
+fi
