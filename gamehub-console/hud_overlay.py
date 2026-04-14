@@ -63,7 +63,7 @@ STATUS_ICON_DIR = str(REPO_ROOT / "assets" / "icons")
 RESTART_KIOSK_CMD = ["bash", str(REPO_ROOT / "restart_kiosk.sh")]
 OTA_CHECK_AVAILABLE_RC = 10
 OTA_CHECK_CMD = ["bash", str(WORKSPACE_ROOT / "release" / "gamehub-console" / "ota_git_update.sh"), "--check-only"]
-OTA_UPDATE_CMD = ["bash", str(WORKSPACE_ROOT / "release" / "gamehub-console" / "ota_git_update.sh"), "--no-restart"]
+OTA_UPDATE_CMD = ["bash", str(WORKSPACE_ROOT / "release" / "gamehub-console" / "ota_git_update.sh")]
 SET_BACKLIGHT_CMD = [str(REPO_ROOT / "set_backlight.sh")]
 NMCLI_CMD = ["/usr/bin/nmcli"]
 PRIVILEGED_NMCLI_CMD = ["sudo", "-n", "/usr/bin/nmcli"]
@@ -4401,13 +4401,7 @@ class QuickMenuOverlay:
         if success:
             self.software_update_available = False
             self.software_remote_version = None
-            self.set_message("Restarting kiosk...", MENU_TOAST_TEXT, timeout_ms=0)
-            if restart_kiosk():
-                self.hide(play_sound=False)
-                return
-            self.set_message("Restart failed to start", MENU_DESTRUCTIVE)
-            self.render()
-            self.center_selected_row()
+            self.hide(play_sound=False)
             return
         self.set_message(message, MENU_DESTRUCTIVE)
         self.render()
