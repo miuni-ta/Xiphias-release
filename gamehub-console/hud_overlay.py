@@ -6,7 +6,9 @@ from io import BytesIO
 import json
 import math
 import os
+import pty
 import re
+import select
 import shlex
 import shutil
 import subprocess
@@ -322,18 +324,82 @@ def run_bluetoothctl_script(commands, timeout=8):
     if not script_lines:
         return ""
     script = "\n".join([*script_lines, "quit"]) + "\n"
+    script_wrapper = shutil.which("script")
+    if script_wrapper:
+        try:
+            result = subprocess.run(
+                [script_wrapper, "-qefc", shlex.join(["bluetoothctl", "--agent", BLUETOOTH_AGENT_CAPABILITY]), "/dev/null"],
+                input=script,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+            return strip_ansi(output).strip()
+        except Exception:
+            pass
+
+    master_fd = None
+    slave_fd = None
+    process = None
     try:
-        result = subprocess.run(
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
             ["bluetoothctl", "--agent", BLUETOOTH_AGENT_CAPABILITY],
-            input=script,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            text=False,
+            close_fds=True,
         )
+        os.write(master_fd, script.encode("utf-8", errors="ignore"))
+
+        output = bytearray()
+        deadline = time.monotonic() + max(1.0, float(timeout))
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                ready, _, _ = select.select([master_fd], [], [], 0)
+                if not ready:
+                    break
+
+            ready, _, _ = select.select([master_fd], [], [], 0.2)
+            if not ready:
+                continue
+            try:
+                chunk = os.read(master_fd, 4096)
+            except OSError:
+                break
+            if not chunk:
+                break
+            output.extend(chunk)
+
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1.5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1.5)
+        return strip_ansi(output.decode("utf-8", errors="replace")).strip()
     except Exception:
+        if process is not None and process.poll() is None:
+            try:
+                process.kill()
+                process.wait(timeout=1.0)
+            except Exception:
+                pass
         return ""
-    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
-    return strip_ansi(output).strip()
+    finally:
+        if slave_fd is not None:
+            try:
+                os.close(slave_fd)
+            except OSError:
+                pass
+        if master_fd is not None:
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
 
 
 def parse_bluetooth_devices(text):
@@ -411,7 +477,7 @@ def bluetooth_scan_results(scan_seconds=BLUETOOTH_SCAN_SECONDS):
 
 
 def bluetooth_session_setup_commands():
-    return ["default-agent", "pairable on"]
+    return ["pairable on"]
 
 
 def bluetooth_connect_commands(address, already_paired=False):
