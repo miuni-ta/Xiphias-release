@@ -5032,7 +5032,7 @@ class QuickMenuOverlay:
                 highlight_top = MENU_FOCUS_INSET
                 highlight_right = max(highlight_left + 1, width - 1 - MENU_FOCUS_INSET)
                 highlight_bottom = min(card_height - 1 - MENU_FOCUS_INSET, MENU_ROW_HEIGHT - MENU_FOCUS_INSET)
-                draw_gradient_rounded_rect(
+                draw_bordered_gradient_rounded_rect(
                     card,
                     highlight_left,
                     highlight_top,
@@ -5041,6 +5041,8 @@ class QuickMenuOverlay:
                     MENU_FOCUS_RADIUS,
                     MENU_CTA_START,
                     MENU_CTA_END,
+                    "",
+                    border_width=0,
                 )
 
             if icon_image is not None:
