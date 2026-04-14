@@ -1,0 +1,16 @@
+[Unit]
+Description=Xiphias first boot finalization
+After=local-fs.target systemd-remount-fs.service plymouth-start.service
+Wants=plymouth-start.service
+Before=NetworkManager.service knf-kiosk.service
+ConditionPathExists=!/var/lib/xiphias/firstboot-complete
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/xiphias-firstboot.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

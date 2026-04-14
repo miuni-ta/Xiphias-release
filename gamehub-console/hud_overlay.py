@@ -1128,21 +1128,21 @@ def current_backlight_devices():
         if override_matches:
             return override_matches
 
+    preferred_output = current_xrandr_output()
+    if preferred_output:
+        preferred_matches = [device for device in devices if device["display_name"] == preferred_output]
+        if preferred_matches:
+            return preferred_matches[:1]
+
     active_outputs = {output["name"] for output in connected_xrandr_outputs()}
     exact_matches = [device for device in devices if device["display_name"] in active_outputs]
-    if exact_matches:
-        active_prefixes = {name.split("-", 1)[0] for name in active_outputs}
-        prefix_matches = [
-            device
-            for device in devices
-            if device["display_name"] and device["display_name"].split("-", 1)[0] in active_prefixes
-        ]
-        return prefix_matches or exact_matches
+    if len(exact_matches) == 1:
+        return exact_matches
 
     for preferred in ("DSI-1", "DSI-2"):
         matches = [device for device in devices if device["display_name"] == preferred]
         if matches:
-            return matches
+            return matches[:1]
 
     return devices[:1]
 
@@ -4873,20 +4873,20 @@ class QuickMenuOverlay:
             trailing_text = self.describe_item(key)
             icon_image = self.load_menu_icon(key, focused)
 
+            draw_bordered_rounded_rect(card, 0, 0, width - 1, card_height - 1, MENU_ROW_RADIUS, MENU_ROW_BG, MENU_ROW_BORDER)
             if focused:
+                highlight_bottom = min(card_height - 1, MENU_ROW_HEIGHT - 1)
                 draw_bordered_gradient_rounded_rect(
                     card,
                     0,
                     0,
                     width - 1,
-                    card_height - 1,
+                    highlight_bottom,
                     MENU_ROW_RADIUS,
                     MENU_CTA_START,
                     MENU_CTA_END,
                     MENU_CTA_END,
                 )
-            else:
-                draw_bordered_rounded_rect(card, 0, 0, width - 1, card_height - 1, MENU_ROW_RADIUS, MENU_ROW_BG, MENU_ROW_BORDER)
 
             if icon_image is not None:
                 card.images.append(icon_image)

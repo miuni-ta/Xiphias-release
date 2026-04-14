@@ -244,6 +244,8 @@ maybe_enable_i2c
 
 echo "[6/9] Installing service..."
 run_root install -m 644 "${BASE_DIR}/files/knf-kiosk.service" /etc/systemd/system/knf-kiosk.service
+run_root install -m 644 "${BASE_DIR}/files/xiphias-firstboot.service" /etc/systemd/system/xiphias-firstboot.service
+run_root install -m 755 "${BASE_DIR}/files/xiphias-firstboot.sh" /usr/local/sbin/xiphias-firstboot.sh
 run_root install -d -m 755 /etc/systemd/user-environment-generators
 run_root install -m 755 "${BASE_DIR}/files/90-xiphias-release-home" /etc/systemd/user-environment-generators/90-xiphias-release-home
 run_root install -m 440 "${BASE_DIR}/files/gamehub-console-sudoers" /etc/sudoers.d/gamehub-console
@@ -278,6 +280,7 @@ chmod +x \
   "${BASE_DIR}/configure_boot_splash.sh" \
   "${BASE_DIR}/launch_chromium.sh" \
   "${BASE_DIR}/restart_kiosk.sh" \
+  "${BASE_DIR}/set_backlight.sh" \
   "${BASE_DIR}/start_kiosk_components.sh" \
   "${BASE_DIR}/gamepad_cursor.py" \
   "${BASE_DIR}/hud_overlay.py" \
