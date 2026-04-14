@@ -210,6 +210,10 @@ SLIDER_TRACK_HEIGHT = 8
 SLIDER_KNOB_RADIUS = 10
 SLIDER_THUMB_ICON_SIZE = 20
 SLIDER_LABEL_FONT = (FONT_FAMILY, 10, "bold")
+SLIDER_TOUCH_PAD_X = 16
+SLIDER_TOUCH_PAD_Y = 18
+MENU_FOCUS_INSET = 2
+MENU_FOCUS_RADIUS = max(0, MENU_ROW_RADIUS - MENU_FOCUS_INSET)
 MENU_LIST_MAX_ITEMS = 4
 TOUCH_SCROLL_DRAG_THRESHOLD = 10
 TOUCH_SCROLL_SETTLE_SEC = 0.35
@@ -534,9 +538,23 @@ def wait_for_bluetooth_device_state(address, connected=None, paired=None, timeou
 
 
 def display_env():
-    env = dict(os.environ, DISPLAY=os.environ.get("DISPLAY", ":0"))
-    if not env.get("XAUTHORITY"):
-        for candidate in (os.path.expanduser("~/.Xauthority"), "/home/pi/.Xauthority"):
+    release_home = str(WORKSPACE_ROOT / "release")
+    env = dict(os.environ)
+    env["DISPLAY"] = env.get("DISPLAY", ":0")
+    env["HOME"] = release_home
+    env["XDG_CONFIG_HOME"] = f"{release_home}/.config"
+    env["XDG_DATA_HOME"] = f"{release_home}/.local/share"
+    env["XDG_CACHE_HOME"] = f"{release_home}/.cache"
+    runtime_dir = f"/run/user/{os.getuid()}"
+    if os.path.isdir(runtime_dir):
+        env["XDG_RUNTIME_DIR"] = runtime_dir
+    xauthority = env.get("XAUTHORITY", "")
+    if not xauthority or not os.path.exists(xauthority):
+        for candidate in (
+            f"{release_home}/.Xauthority",
+            os.path.join(release_home, ".cache", ".Xauthority"),
+            "/home/pi/.Xauthority",
+        ):
             if os.path.exists(candidate):
                 env["XAUTHORITY"] = candidate
                 break
@@ -2939,6 +2957,8 @@ class QuickMenuOverlay:
         self.touch_press_y_root = 0
         self.touch_press_scroll_top = 0.0
         self.touch_press_index = None
+        self.touch_slider_index = None
+        self.touch_slider_key = None
         self.touch_scroll_suppress_until = 0.0
         self.software_version = read_workspace_version()
         self.items = [
@@ -3258,6 +3278,55 @@ class QuickMenuOverlay:
             width = SCREEN_W - (MENU_LIST_PAD_X * 2)
         return width
 
+    def row_card_height(self, row_index):
+        if row_index < 0 or row_index >= len(self.rows):
+            return MENU_ROW_HEIGHT
+        key = self.item_key_at_index(row_index)
+        card = self.rows[row_index]["card"]
+        height = max(MENU_ROW_HEIGHT, card.winfo_height())
+        if key == self.expanded_key:
+            height = max(height, MENU_ROW_HEIGHT + self.detail_panel_height(key))
+        return height
+
+    def touch_slider_geometry(self, row_index):
+        if row_index is None or row_index < 0 or row_index >= len(self.rows):
+            return None
+        key = self.item_key_at_index(row_index)
+        if key not in ADJUSTABLE_ITEM_KEYS or key != self.expanded_key:
+            return None
+        width = self.row_card_width(row_index)
+        card_height = self.row_card_height(row_index)
+        return self.slider_panel_geometry(key, width, card_height)
+
+    def touch_slider_hit_target(self, row_index, x_pos, y_pos):
+        geometry = self.touch_slider_geometry(row_index)
+        if geometry is None:
+            return None
+        if x_pos < geometry["slider_left"] - SLIDER_TOUCH_PAD_X or x_pos > geometry["slider_right"] + SLIDER_TOUCH_PAD_X:
+            return None
+        slider_top = geometry["slider_y"] - SLIDER_KNOB_RADIUS - SLIDER_TOUCH_PAD_Y
+        slider_bottom = geometry["slider_y"] + SLIDER_KNOB_RADIUS + SLIDER_TOUCH_PAD_Y
+        if y_pos < slider_top or y_pos > slider_bottom:
+            return None
+        return geometry
+
+    def slider_value_from_touch(self, geometry, x_pos):
+        slider_left = geometry["slider_left"]
+        slider_right = geometry["slider_right"]
+        width = max(1, slider_right - slider_left)
+        ratio = max(0.0, min(1.0, (x_pos - slider_left) / float(width)))
+        value = int(round(ratio * 100.0))
+        if geometry["key"] == BRIGHTNESS_ITEM_KEY:
+            return clamp_brightness_percent(value)
+        return max(0, min(100, value))
+
+    def update_touch_slider(self, row_index, x_pos):
+        geometry = self.touch_slider_geometry(row_index)
+        if geometry is None:
+            return False
+        value = self.slider_value_from_touch(geometry, x_pos)
+        return self.set_slider_value(geometry["key"], value, animate=False)
+
     def detail_entry_hit_index(self, row_index, x_pos, y_pos):
         if row_index is None or row_index < 0 or row_index >= len(self.rows):
             return None
@@ -3334,11 +3403,25 @@ class QuickMenuOverlay:
         self.touch_press_y_root = event.y_root
         self.touch_press_scroll_top = self.current_scroll_top()
         self.touch_press_index = index
+        self.touch_slider_index = None
+        self.touch_slider_key = None
+        slider_target = self.touch_slider_hit_target(index, event.x, event.y)
+        if slider_target is not None:
+            self.selected_index = index
+            self.selection_visibility_pending = False
+            self.touch_slider_index = index
+            self.touch_slider_key = slider_target["key"]
+            self.update_touch_slider(index, event.x)
         return "break"
 
     def on_touch_drag(self, event):
         if not self.touch_press_active:
             return None
+        if self.touch_slider_key is not None and self.touch_slider_index is not None:
+            self.touch_drag_active = True
+            self.touch_scroll_suppress_until = time.monotonic() + TOUCH_SCROLL_SETTLE_SEC
+            self.update_touch_slider(self.touch_slider_index, event.x)
+            return "break"
         delta_y = event.y_root - self.touch_press_y_root
         if not self.touch_drag_active and abs(delta_y) < TOUCH_SCROLL_DRAG_THRESHOLD:
             return "break"
@@ -3356,6 +3439,14 @@ class QuickMenuOverlay:
         self.touch_press_active = False
         self.touch_drag_active = False
         self.touch_press_index = None
+        slider_index = self.touch_slider_index
+        slider_key = self.touch_slider_key
+        self.touch_slider_index = None
+        self.touch_slider_key = None
+        if slider_key is not None and slider_index is not None:
+            self.touch_scroll_suppress_until = time.monotonic() + TOUCH_SCROLL_SETTLE_SEC
+            self.update_touch_slider(slider_index, event.x)
+            return "break"
         if dragged:
             self.touch_scroll_suppress_until = time.monotonic() + TOUCH_SCROLL_SETTLE_SEC
             return "break"
@@ -3502,6 +3593,8 @@ class QuickMenuOverlay:
             self.software_update_available = False
             self.software_remote_version = None
         self.cancel_bluetooth_open_refresh()
+        self.touch_slider_index = None
+        self.touch_slider_key = None
         self.adjusting_key = None
         self.expanded_key = None
         self.detail_selection_key = None
@@ -3784,27 +3877,56 @@ class QuickMenuOverlay:
         if self.adjusting_key == BRIGHTNESS_ITEM_KEY:
             self.adjust_brightness(direction * BRIGHTNESS_ADJUST_STEP)
 
-    def adjust_volume(self, delta):
-        next_target = max(0, min(100, self.volume_target_value + delta))
-        if next_target == self.volume_target_value:
-            return
-        self.volume_target_value = next_target
-        if self.sound_player is not None:
-            self.sound_player.play_slider(delta)
-        if self.volume_animation_job is None:
-            self.step_volume_animation()
+    def set_slider_value(self, key, value, animate=True):
+        if key == VOLUME_ITEM_KEY:
+            return self.set_volume_absolute(value, animate=animate)
+        if key == BRIGHTNESS_ITEM_KEY:
+            return self.set_brightness_absolute(value)
+        return False
 
-    def adjust_brightness(self, delta):
-        next_value = clamp_brightness_percent(self.brightness_value + delta)
+    def set_volume_absolute(self, value, animate=True):
+        next_target = max(0, min(100, int(round(value))))
+        if next_target == self.volume_target_value and next_target == self.volume_value:
+            return False
+        delta = next_target - (self.volume_target_value if animate else self.volume_value)
+        self.volume_target_value = next_target
+        if delta != 0 and self.sound_player is not None:
+            self.sound_player.play_slider(delta)
+        if animate:
+            if self.volume_animation_job is None:
+                self.step_volume_animation()
+            return True
+        self.cancel_volume_animation()
+        self.volume_value = next_target
+        self.queue_volume_write(self.volume_value)
+        self.push_snapshot(
+            self.optimistic_snapshot(
+                volume_level=self.volume_value,
+                volume_muted=self.volume_value <= 0,
+            )
+        )
+        self.render()
+        return True
+
+    def adjust_volume(self, delta):
+        self.set_volume_absolute(self.volume_target_value + delta)
+
+    def set_brightness_absolute(self, value):
+        next_value = clamp_brightness_percent(value)
         if next_value == self.brightness_value:
-            return
+            return False
         if not set_display_brightness(next_value):
             self.set_message("Brightness control unavailable", MENU_DESTRUCTIVE)
-            return
+            return False
+        delta = next_value - self.brightness_value
         self.brightness_value = next_value
-        if self.sound_player is not None:
+        if delta != 0 and self.sound_player is not None:
             self.sound_player.play_slider(delta)
         self.render()
+        return True
+
+    def adjust_brightness(self, delta):
+        self.set_brightness_absolute(self.brightness_value + delta)
 
     def open_adjustable(self, key):
         self.expanded_key = key
@@ -4580,13 +4702,41 @@ class QuickMenuOverlay:
             width=0,
         )
 
-    def draw_detail_container(self, card, width, card_height, left_inset=MENU_ROW_TEXT_X, right_inset=MENU_ROW_TRAILING_PAD):
+    def detail_container_bounds(self, width, card_height, left_inset=MENU_ROW_TEXT_X, right_inset=MENU_ROW_TRAILING_PAD):
         x1 = left_inset
         x2 = max(x1 + 1, width - right_inset)
         y1 = MENU_ROW_HEIGHT + DETAIL_PANEL_TOP_PAD
         y2 = max(y1 + 1, card_height - DETAIL_PANEL_BOTTOM_PAD)
+        return x1, y1, x2, y2
+
+    def draw_detail_container(self, card, width, card_height, left_inset=MENU_ROW_TEXT_X, right_inset=MENU_ROW_TRAILING_PAD):
+        x1, y1, x2, y2 = self.detail_container_bounds(width, card_height, left_inset=left_inset, right_inset=right_inset)
         draw_bordered_rounded_rect(card, x1, y1, x2, y2, DETAIL_PANEL_RADIUS, MENU_DETAIL_BG, MENU_DETAIL_BORDER)
         return x1, y1, x2, y2
+
+    def slider_panel_geometry(self, key, width, card_height):
+        x1, y1, x2, y2 = self.detail_container_bounds(width, card_height)
+        inner_left = x1 + DETAIL_PANEL_SIDE_PAD
+        inner_right = x2 - DETAIL_PANEL_SIDE_PAD
+        icon_padding = 34 if key == BRIGHTNESS_ITEM_KEY else 0
+        slider_right = inner_right - icon_padding
+        title_y = y1 + 18
+        note_y = title_y + 18
+        slider_y = note_y + 24
+        return {
+            "key": key,
+            "panel_x1": x1,
+            "panel_y1": y1,
+            "panel_x2": x2,
+            "panel_y2": y2,
+            "inner_left": inner_left,
+            "inner_right": inner_right,
+            "slider_left": inner_left,
+            "slider_right": slider_right,
+            "title_y": title_y,
+            "note_y": note_y,
+            "slider_y": slider_y,
+        }
 
     def draw_prompt_hint(self, card, x_pos, y_pos, icon_filename, text, fill, font, anchor="w"):
         label = str(text or "").strip()
@@ -4610,9 +4760,17 @@ class QuickMenuOverlay:
             card.create_text(text_x, y_pos, text=label, fill=fill, font=font, anchor="w")
 
     def draw_slider_panel(self, card, key, width, card_height):
-        x1, y1, x2, y2 = self.draw_detail_container(card, width, card_height)
-        inner_left = x1 + DETAIL_PANEL_SIDE_PAD
-        inner_right = x2 - DETAIL_PANEL_SIDE_PAD
+        geometry = self.slider_panel_geometry(key, width, card_height)
+        x1 = geometry["panel_x1"]
+        y1 = geometry["panel_y1"]
+        x2 = geometry["panel_x2"]
+        inner_left = geometry["inner_left"]
+        inner_right = geometry["inner_right"]
+        slider_right = geometry["slider_right"]
+        title_y = geometry["title_y"]
+        note_y = geometry["note_y"]
+        slider_y = geometry["slider_y"]
+        draw_bordered_rounded_rect(card, x1, y1, x2, geometry["panel_y2"], DETAIL_PANEL_RADIUS, MENU_DETAIL_BG, MENU_DETAIL_BORDER)
 
         if key == VOLUME_ITEM_KEY:
             title = "Live system volume"
@@ -4625,15 +4783,10 @@ class QuickMenuOverlay:
             adjust_hint = "to adjust brightness"
             slider_value = self.brightness_value
 
-        title_y = y1 + 18
         card.create_text(inner_left, title_y, text=title, fill=MENU_DETAIL_TEXT, font=SLIDER_LABEL_FONT, anchor="w")
         card.create_text(inner_right, title_y, text=value_text, fill=MENU_DETAIL_TEXT, font=SLIDER_LABEL_FONT, anchor="e")
 
-        note_y = title_y + 18
-        icon_padding = 34 if key == BRIGHTNESS_ITEM_KEY else 0
-        slider_right = inner_right - icon_padding
         self.draw_prompt_hint(card, inner_left, note_y, "dpad.png", adjust_hint, MENU_DETAIL_SUBTEXT, SLIDER_LABEL_FONT)
-        slider_y = note_y + 24
         self.draw_slider(card, inner_left, slider_right, slider_y, slider_value)
 
         if key == BRIGHTNESS_ITEM_KEY:
@@ -4875,16 +5028,18 @@ class QuickMenuOverlay:
 
             draw_bordered_rounded_rect(card, 0, 0, width - 1, card_height - 1, MENU_ROW_RADIUS, MENU_ROW_BG, MENU_ROW_BORDER)
             if focused:
-                highlight_bottom = min(card_height - 1, MENU_ROW_HEIGHT - 1)
-                draw_bordered_gradient_rounded_rect(
+                highlight_left = MENU_FOCUS_INSET
+                highlight_top = MENU_FOCUS_INSET
+                highlight_right = max(highlight_left + 1, width - 1 - MENU_FOCUS_INSET)
+                highlight_bottom = min(card_height - 1 - MENU_FOCUS_INSET, MENU_ROW_HEIGHT - MENU_FOCUS_INSET)
+                draw_gradient_rounded_rect(
                     card,
-                    0,
-                    0,
-                    width - 1,
+                    highlight_left,
+                    highlight_top,
+                    highlight_right,
                     highlight_bottom,
-                    MENU_ROW_RADIUS,
+                    MENU_FOCUS_RADIUS,
                     MENU_CTA_START,
-                    MENU_CTA_END,
                     MENU_CTA_END,
                 )
 

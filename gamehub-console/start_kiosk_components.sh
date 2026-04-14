@@ -3,9 +3,21 @@ set -euo pipefail
 
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BASE_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+WORKSPACE_ROOT="$(cd "${BASE_DIR}/.." && pwd)"
+RELEASE_HOME="${WORKSPACE_ROOT}"
 LOG_DIR="${BASE_DIR}/logs"
 BOOT_SPLASH_READY_FILE="${BOOT_SPLASH_READY_FILE:-/tmp/gamehub-boot-ready}"
 export DISPLAY="${DISPLAY:-:0}"
+export HOME="${RELEASE_HOME}"
+export XDG_CONFIG_HOME="${HOME}/.config"
+export XDG_DATA_HOME="${HOME}/.local/share"
+export XDG_CACHE_HOME="${HOME}/.cache"
+for candidate in "${RELEASE_HOME}/.Xauthority" "/home/pi/.Xauthority"; do
+  if [[ -f "${candidate}" ]]; then
+    export XAUTHORITY="${candidate}"
+    break
+  fi
+done
 SHOW_BOOT_SPLASH="${SHOW_BOOT_SPLASH:-auto}"
 
 find_boot_file() {
@@ -58,6 +70,26 @@ resolve_x_boot_splash_mode() {
   esac
 }
 
+launch_component() {
+  local delay_sec="$1"
+  local log_path="$2"
+  shift 2
+
+  setsid -f env \
+    DISPLAY="${DISPLAY}" \
+    HOME="${HOME}" \
+    XDG_CONFIG_HOME="${XDG_CONFIG_HOME}" \
+    XDG_DATA_HOME="${XDG_DATA_HOME}" \
+    XDG_CACHE_HOME="${XDG_CACHE_HOME}" \
+    XAUTHORITY="${XAUTHORITY:-}" \
+    BOOT_SPLASH_READY_FILE="${BOOT_SPLASH_READY_FILE}" \
+    BOOT_SPLASH_MODE="${BOOT_SPLASH_MODE:-}" \
+    bash -c 'sleep "$1"; shift; log_path="$1"; shift; exec "$@" >> "${log_path}" 2>&1' _ \
+    "${delay_sec}" \
+    "${log_path}" \
+    "$@"
+}
+
 mkdir -p "${LOG_DIR}"
 rm -f "${BOOT_SPLASH_READY_FILE}"
 
@@ -72,10 +104,10 @@ pkill -f '[/]usr/bin/blueman-tray' >/dev/null 2>&1 || true
 BOOT_SPLASH_MODE="$(resolve_x_boot_splash_mode)"
 
 if [[ "${BOOT_SPLASH_MODE}" != "none" ]]; then
-  setsid -f bash -lc "export DISPLAY='${DISPLAY}'; export BOOT_SPLASH_MODE='${BOOT_SPLASH_MODE}'; export BOOT_SPLASH_READY_FILE='${BOOT_SPLASH_READY_FILE}'; exec python3 '${BASE_DIR}/boot_splash.py' >> '${LOG_DIR}/splash.log' 2>&1"
+  launch_component 0 "${LOG_DIR}/splash.log" python3 "${BASE_DIR}/boot_splash.py"
 fi
 
-setsid -f bash -lc "sleep 0.1; export DISPLAY='${DISPLAY}'; exec unclutter -idle 0 -root >> '${LOG_DIR}/cursor.log' 2>&1"
-setsid -f bash -lc "sleep 0.2; export DISPLAY='${DISPLAY}'; exec python3 '${BASE_DIR}/hud_overlay.py' >> '${LOG_DIR}/hud.log' 2>&1"
-setsid -f bash -lc "sleep 0.2; export DISPLAY='${DISPLAY}'; exec python3 '${BASE_DIR}/gamepad_cursor.py' >> '${LOG_DIR}/gamepad.log' 2>&1"
-setsid -f bash -lc "sleep 0.35; export DISPLAY='${DISPLAY}'; export BOOT_SPLASH_READY_FILE='${BOOT_SPLASH_READY_FILE}'; exec bash '${BASE_DIR}/launch_chromium.sh' >> '${LOG_DIR}/chromium.log' 2>&1"
+launch_component 0.1 "${LOG_DIR}/cursor.log" unclutter -idle 0 -root
+launch_component 0.2 "${LOG_DIR}/hud.log" python3 "${BASE_DIR}/hud_overlay.py"
+launch_component 0.2 "${LOG_DIR}/gamepad.log" python3 "${BASE_DIR}/gamepad_cursor.py"
+launch_component 0.35 "${LOG_DIR}/chromium.log" bash "${BASE_DIR}/launch_chromium.sh"

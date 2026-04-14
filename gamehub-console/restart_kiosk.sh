@@ -3,10 +3,22 @@ set -euo pipefail
 
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BASE_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+WORKSPACE_ROOT="$(cd "${BASE_DIR}/.." && pwd)"
+RELEASE_HOME="${WORKSPACE_ROOT}"
 START_SCRIPT="${BASE_DIR}/start_kiosk_components.sh"
 LOCK_FILE="/tmp/gamehub-restart.lock"
 LOCK_FD_OPEN=0
 export DISPLAY="${DISPLAY:-:0}"
+export HOME="${RELEASE_HOME}"
+export XDG_CONFIG_HOME="${HOME}/.config"
+export XDG_DATA_HOME="${HOME}/.local/share"
+export XDG_CACHE_HOME="${HOME}/.cache"
+for candidate in "${RELEASE_HOME}/.Xauthority" "/home/pi/.Xauthority"; do
+  if [[ -f "${candidate}" ]]; then
+    export XAUTHORITY="${candidate}"
+    break
+  fi
+done
 
 if command -v flock >/dev/null 2>&1; then
   exec 9>"${LOCK_FILE}"

@@ -2,8 +2,12 @@
 import json
 import os
 import sys
+import time
 
-from smbus2 import SMBus
+try:
+    from smbus2 import SMBus
+except Exception:
+    SMBus = None
 
 
 INA219_CONFIG = 0x00
@@ -14,6 +18,8 @@ DEFAULT_BUSES = (1, 0)
 DEFAULT_ADDRESSES = (0x43, 0x42)
 EMPTY_VOLTAGE = float(os.environ.get("WAVESHARE_UPS_EMPTY_VOLTAGE", "6.0"))
 FULL_VOLTAGE = float(os.environ.get("WAVESHARE_UPS_FULL_VOLTAGE", "8.4"))
+DEFAULT_RETRIES = max(1, int(os.environ.get("WAVESHARE_UPS_RETRIES", "2")))
+RETRY_DELAY_SEC = max(0.0, float(os.environ.get("WAVESHARE_UPS_RETRY_DELAY_SEC", "0.2")))
 
 
 def env_ints(name, defaults):
@@ -28,6 +34,54 @@ def env_ints(name, defaults):
             continue
         values.append(int(item, 0))
     return tuple(values) or defaults
+
+
+def ordered_unique(values):
+    ordered = []
+    seen = set()
+    for value in values:
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError):
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        ordered.append(normalized)
+    return tuple(ordered)
+
+
+def available_i2c_buses():
+    discovered = []
+
+    dev_root = "/dev"
+    if os.path.isdir(dev_root):
+        for name in os.listdir(dev_root):
+            if not name.startswith("i2c-"):
+                continue
+            try:
+                discovered.append(int(name.split("-", 1)[1]))
+            except ValueError:
+                continue
+
+    sys_root = "/sys/class/i2c-dev"
+    if os.path.isdir(sys_root):
+        for name in os.listdir(sys_root):
+            if not name.startswith("i2c-"):
+                continue
+            try:
+                discovered.append(int(name.split("-", 1)[1]))
+            except ValueError:
+                continue
+
+    return ordered_unique(sorted(discovered))
+
+
+def candidate_buses():
+    configured = env_ints("WAVESHARE_UPS_I2C_BUS", ())
+    if configured:
+        return configured
+    return ordered_unique((*DEFAULT_BUSES, *available_i2c_buses())) or DEFAULT_BUSES
 
 
 def swap_word(value):
@@ -52,8 +106,11 @@ def voltage_percent(voltage):
     return max(0, min(100, percent))
 
 
-def detect_status():
-    buses = env_ints("WAVESHARE_UPS_I2C_BUS", DEFAULT_BUSES)
+def detect_status_once():
+    if SMBus is None:
+        return None
+
+    buses = candidate_buses()
     addresses = env_ints("WAVESHARE_UPS_I2C_ADDRS", DEFAULT_ADDRESSES)
 
     for bus_number in buses:
@@ -80,6 +137,17 @@ def detect_status():
                         "percent": percent,
                         "charging": shunt_raw > 0,
                     }
+    return None
+
+
+def detect_status():
+    attempts = DEFAULT_RETRIES
+    for attempt in range(attempts):
+        status = detect_status_once()
+        if status is not None:
+            return status
+        if attempt + 1 < attempts:
+            time.sleep(RETRY_DELAY_SEC)
     return None
 
 
