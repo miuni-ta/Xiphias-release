@@ -126,6 +126,7 @@ OTA_REPO="${OTA_REPO:-}"
 OTA_BRANCH="${OTA_BRANCH:-master}"
 OTA_TOKEN="${OTA_TOKEN:-}"
 OTA_PATH_IN_REPO="${OTA_PATH_IN_REPO:-}"
+MAX_UPDATE_CHANGE_ITEMS=4
 
 [[ -n "${OTA_REPO}" ]] || fail "OTA_REPO is missing from ${ENV_FILE}."
 
@@ -157,10 +158,19 @@ emit_check_result() {
   local status="$1"
   local current_version="$2"
   local remote_version="$3"
+  local index=0
+  shift 3
 
   printf 'CHECK_STATUS=%s\n' "${status}"
   printf 'CHECK_CURRENT_VERSION=%s\n' "${current_version}"
   printf 'CHECK_REMOTE_VERSION=%s\n' "${remote_version}"
+  for note in "$@"; do
+    note="$(printf '%s' "${note}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ -n "${note}" ]] || continue
+    index=$((index + 1))
+    printf 'CHECK_CHANGE_%d=%s\n' "${index}" "${note}"
+  done
+  printf 'CHECK_CHANGE_COUNT=%d\n' "${index}"
 }
 
 emit_deploy_result() {
@@ -171,6 +181,51 @@ emit_deploy_result() {
   printf 'OTA_STATUS=%s\n' "${status}"
   printf 'OTA_CURRENT_VERSION=%s\n' "${current_version}"
   printf 'OTA_REMOTE_VERSION=%s\n' "${remote_version}"
+}
+
+collect_recent_summary_lines() {
+  local path="$1"
+
+  [[ -f "${path}" ]] || return 0
+  sed -n 's/^- Summary:[[:space:]]*//p' "${path}" | tail -n "${MAX_UPDATE_CHANGE_ITEMS}"
+}
+
+collect_added_summary_lines() {
+  local old_path="$1"
+  local new_path="$2"
+
+  [[ -f "${new_path}" ]] || return 0
+  if [[ ! -f "${old_path}" ]]; then
+    collect_recent_summary_lines "${new_path}"
+    return 0
+  fi
+
+  diff -U0 "${old_path}" "${new_path}" 2>/dev/null |
+    sed -n 's/^+- Summary:[[:space:]]*//p' |
+    tail -n "${MAX_UPDATE_CHANGE_ITEMS}"
+}
+
+build_update_change_notes() {
+  local old_path="$1"
+  local new_path="$2"
+  local note=""
+  local -a notes=()
+
+  while IFS= read -r note; do
+    note="$(printf '%s' "${note}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ -n "${note}" ]] || continue
+    notes+=("${note}")
+  done < <(collect_added_summary_lines "${old_path}" "${new_path}")
+
+  if [[ "${#notes[@]}" -eq 0 ]]; then
+    while IFS= read -r note; do
+      note="$(printf '%s' "${note}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [[ -n "${note}" ]] || continue
+      notes+=("${note}")
+    done < <(collect_recent_summary_lines "${new_path}")
+  fi
+
+  printf '%s\n' "${notes[@]:0:${MAX_UPDATE_CHANGE_ITEMS}}"
 }
 
 worktree_is_clean() {
@@ -291,7 +346,8 @@ prepare_worktree_source_root() {
 }
 
 check_worktree_updates() {
-  local repo_root current_branch local_head remote_head current_ref current_version remote_version
+  local repo_root current_branch local_head remote_head current_ref current_version remote_version remote_timestamp_file
+  local -a update_notes=()
 
   repo_root="$(worktree_repo_root)"
   [[ -n "${repo_root}" ]] || return 2
@@ -317,7 +373,16 @@ check_worktree_updates() {
     return 1
   fi
 
-  emit_check_result "update-available" "${current_version}" "${remote_version}"
+  remote_timestamp_file="${TMP_DIR}/remote-timestamp-console.md"
+  if git -C "${GIT_ROOT}" show "FETCH_HEAD:release/gamehub-console/timestamp-console.md" > "${remote_timestamp_file}" 2>/dev/null; then
+    mapfile -t update_notes < <(
+      build_update_change_notes \
+        "${LIVE_ROOT}/gamehub-console/timestamp-console.md" \
+        "${remote_timestamp_file}"
+    )
+  fi
+
+  emit_check_result "update-available" "${current_version}" "${remote_version}" "${update_notes[@]}"
   return 0
 }
 
@@ -463,11 +528,17 @@ check_cloned_updates() {
   local src_root="$1"
   local repo_root="$2"
   local current_ref remote_head current_version remote_version
+  local -a update_notes=()
 
   current_version="$(read_version_file "${GIT_ROOT}/version.txt")"
   remote_version="$(read_version_file "${repo_root}/version.txt")"
   current_ref="$(effective_local_ref || true)"
   remote_head="$(repo_head "${repo_root}")"
+  mapfile -t update_notes < <(
+    build_update_change_notes \
+      "${LIVE_ROOT}/gamehub-console/timestamp-console.md" \
+      "${src_root}/gamehub-console/timestamp-console.md"
+  )
 
   if [[ -n "${current_ref}" && -n "${remote_head}" ]]; then
     if [[ "${current_ref}" == "${remote_head}" ]]; then
@@ -475,12 +546,12 @@ check_cloned_updates() {
       return 1
     fi
 
-    emit_check_result "update-available" "${current_version}" "${remote_version}"
+    emit_check_result "update-available" "${current_version}" "${remote_version}" "${update_notes[@]}"
     return 0
   fi
 
   if managed_paths_changed "${src_root}" "${LIVE_ROOT}" || file_changed "${repo_root}/version.txt" "${GIT_ROOT}/version.txt"; then
-    emit_check_result "update-available" "${current_version}" "${remote_version}"
+    emit_check_result "update-available" "${current_version}" "${remote_version}" "${update_notes[@]}"
     return 0
   fi
 

@@ -193,6 +193,11 @@ DETAIL_CONFIRM_PANEL_SIDE_PAD = DETAIL_LIST_PANEL_SIDE_PAD
 DETAIL_CONFIRM_PANEL_ITEM_INSET_X = DETAIL_LIST_PANEL_ITEM_INSET_X
 DETAIL_CONFIRM_PANEL_TITLE_OFFSET_Y = 18
 DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y = 18
+DETAIL_CONFIRM_PANEL_CHANGES_TOP_GAP = 14
+DETAIL_CONFIRM_PANEL_CHANGES_LABEL_GAP = 6
+DETAIL_CONFIRM_PANEL_CHANGES_LINE_GAP = 2
+DETAIL_CONFIRM_PANEL_CHANGES_ITEM_GAP = 8
+DETAIL_CONFIRM_PANEL_CHANGES_BULLET_GAP = 10
 DETAIL_CONFIRM_PANEL_BUTTON_TOP_GAP = 16
 DETAIL_CONFIRM_PANEL_BUTTON_HEIGHT = 32
 DETAIL_CONFIRM_PANEL_BOTTOM_PAD = 10
@@ -212,6 +217,8 @@ SLIDER_TRACK_HEIGHT = 8
 SLIDER_KNOB_RADIUS = 10
 SLIDER_THUMB_ICON_SIZE = 20
 SLIDER_LABEL_FONT = (FONT_FAMILY, 10, "bold")
+UPDATE_CHANGE_NOTES_MAX_ITEMS = 4
+UPDATE_CHANGE_NOTE_MAX_LINES = 2
 SLIDER_TOUCH_PAD_X = 16
 SLIDER_TOUCH_PAD_Y = 18
 MENU_FOCUS_INSET = 2
@@ -750,6 +757,19 @@ def parse_command_metadata(output, prefix):
             continue
         data[key] = value.strip()
     return data
+
+
+def parse_indexed_metadata_list(metadata, prefix):
+    indexed_items = []
+    for key, value in metadata.items():
+        if not key.startswith(prefix):
+            continue
+        suffix = key[len(prefix):]
+        if not suffix.isdigit():
+            continue
+        indexed_items.append((int(suffix), str(value).strip()))
+    indexed_items.sort(key=lambda item: item[0])
+    return [value for _index, value in indexed_items if value]
 
 
 def grayscale_color(value):
@@ -1634,6 +1654,47 @@ def measure_text_width(font_spec, text):
         return tkfont.Font(font=font_spec).measure(text)
     except tk.TclError:
         return len(str(text)) * 6
+
+
+@lru_cache(maxsize=None)
+def measure_text_height(font_spec):
+    try:
+        return tkfont.Font(font=font_spec).metrics("linespace")
+    except tk.TclError:
+        return 12
+
+
+def wrap_text_lines(font_spec, text, max_width, max_lines=None):
+    normalized = " ".join(str(text or "").split())
+    if not normalized:
+        return []
+    if max_width <= 0:
+        return [normalized]
+
+    lines = []
+    current = ""
+    for word in normalized.split(" "):
+        candidate = word if not current else f"{current} {word}"
+        if current and measure_text_width(font_spec, candidate) > max_width:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last_line = lines[-1].rstrip()
+        ellipsis = "..."
+        while last_line and measure_text_width(font_spec, last_line + ellipsis) > max_width:
+            if " " in last_line:
+                last_line = last_line.rsplit(" ", 1)[0].rstrip()
+            else:
+                last_line = last_line[:-1].rstrip()
+        lines[-1] = f"{(last_line.rstrip(' .,;:-') or last_line).rstrip()}{ellipsis}"
+
+    return [line for line in lines if line]
 
 
 def pixbuf_to_photo_image(pixbuf):
@@ -2992,6 +3053,7 @@ class QuickMenuOverlay:
         self.software_update_in_progress = False
         self.software_update_available = False
         self.software_remote_version = None
+        self.software_update_notes = []
         self.message_job = None
         self.animation_job = None
         self.volume_animation_job = None
@@ -4370,12 +4432,17 @@ class QuickMenuOverlay:
         self.software_update_check_in_progress = bool(active)
         self.render()
 
-    def finish_software_update_check(self, available, current_version=None, remote_version=None, message=None):
+    def finish_software_update_check(self, available, current_version=None, remote_version=None, message=None, update_notes=None):
         self.software_update_check_in_progress = False
         resolved_current_version = str(current_version or read_workspace_version()).strip()
         self.software_version = resolved_current_version or read_workspace_version()
         self.software_update_available = bool(available)
         self.software_remote_version = str(remote_version).strip() if remote_version else None
+        self.software_update_notes = [
+            " ".join(str(note or "").replace("`", "").split())
+            for note in (update_notes or [])
+            if str(note or "").strip()
+        ][:UPDATE_CHANGE_NOTES_MAX_ITEMS]
 
         if self.software_update_available:
             self.adjusting_key = None
@@ -4388,6 +4455,7 @@ class QuickMenuOverlay:
             return
 
         self.software_remote_version = None
+        self.software_update_notes = []
         if self.expanded_key == UPDATE_ITEM_KEY:
             self.collapse_expanded()
         if message:
@@ -4401,6 +4469,7 @@ class QuickMenuOverlay:
         if success:
             self.software_update_available = False
             self.software_remote_version = None
+            self.software_update_notes = []
             self.hide(play_sound=False)
             return
         self.set_message(message, MENU_DESTRUCTIVE)
@@ -4426,11 +4495,13 @@ class QuickMenuOverlay:
             metadata = parse_command_metadata(output, "CHECK_")
             current_version = metadata.get("CHECK_CURRENT_VERSION") or read_workspace_version()
             remote_version = metadata.get("CHECK_REMOTE_VERSION") or None
+            update_notes = parse_indexed_metadata_list(metadata, "CHECK_CHANGE_")
             if result.returncode == OTA_CHECK_AVAILABLE_RC:
-                callback = lambda: self.finish_software_update_check(
+                callback = lambda resolved_notes=list(update_notes): self.finish_software_update_check(
                     True,
                     current_version=current_version,
                     remote_version=remote_version,
+                    update_notes=resolved_notes,
                 )
             elif result.returncode == 0:
                 callback = lambda: self.finish_software_update_check(
@@ -4487,6 +4558,7 @@ class QuickMenuOverlay:
         self.software_version = read_workspace_version()
         self.software_update_available = False
         self.software_remote_version = None
+        self.software_update_notes = []
         if self.expanded_key == UPDATE_ITEM_KEY:
             self.collapse_expanded()
         self.set_software_update_check_state(True)
@@ -4573,9 +4645,53 @@ class QuickMenuOverlay:
             return DETAIL_LIST_PANEL_BASE_HEIGHT + (row_count * DETAIL_LIST_PANEL_ROW_HEIGHT) + (
                 max(0, row_count - 1) * DETAIL_LIST_PANEL_ROW_GAP
             )
+        if key == UPDATE_ITEM_KEY:
+            return DETAIL_CONFIRM_PANEL_BASE_HEIGHT + self.update_confirm_notes_height(MENU_WIDTH)
         if key in CONFIRM_ITEM_KEYS:
             return DETAIL_CONFIRM_PANEL_BASE_HEIGHT
         return 0
+
+    def update_confirm_notes_height(self, width):
+        note_entries = self.software_update_note_entries(width)
+        if not note_entries:
+            return 0
+        line_height = measure_text_height(SLIDER_LABEL_FONT)
+        total_height = DETAIL_CONFIRM_PANEL_CHANGES_TOP_GAP + line_height + DETAIL_CONFIRM_PANEL_CHANGES_LABEL_GAP
+        for index, entry in enumerate(note_entries):
+            line_count = len(entry["lines"])
+            total_height += line_count * line_height
+            if line_count > 1:
+                total_height += (line_count - 1) * DETAIL_CONFIRM_PANEL_CHANGES_LINE_GAP
+            if index < len(note_entries) - 1:
+                total_height += DETAIL_CONFIRM_PANEL_CHANGES_ITEM_GAP
+        return total_height
+
+    def software_update_note_entries(self, width):
+        if self.software_update_in_progress or not self.software_update_notes:
+            return []
+
+        panel_width = max(1, width - (DETAIL_CONFIRM_PANEL_OUTER_PAD_X * 2))
+        content_width = max(
+            80,
+            panel_width - (DETAIL_CONFIRM_PANEL_SIDE_PAD * 2) - (DETAIL_CONFIRM_PANEL_ITEM_INSET_X * 2),
+        )
+        note_text_width = max(
+            60,
+            content_width - measure_text_width(SLIDER_LABEL_FONT, "-") - DETAIL_CONFIRM_PANEL_CHANGES_BULLET_GAP,
+        )
+
+        entries = []
+        for note in self.software_update_notes[:UPDATE_CHANGE_NOTES_MAX_ITEMS]:
+            lines = wrap_text_lines(
+                SLIDER_LABEL_FONT,
+                note,
+                note_text_width,
+                max_lines=UPDATE_CHANGE_NOTE_MAX_LINES,
+            )
+            if not lines:
+                continue
+            entries.append({"text": note, "lines": lines})
+        return entries
 
     def wifi_detail_entries(self):
         state = self.snapshot.get("wifi_state", "offline")
@@ -4991,11 +5107,12 @@ class QuickMenuOverlay:
             button_border = MENU_CONFIRM_BORDER
 
         title_y = y1 + DETAIL_CONFIRM_PANEL_TITLE_OFFSET_Y
+        note_y = title_y + DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y
         card.create_text(content_left, title_y, text=action_text, fill=MENU_DETAIL_TEXT, font=SLIDER_LABEL_FONT, anchor="w")
         if prompt_icon is None:
             card.create_text(
                 content_left,
-                title_y + DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y,
+                note_y,
                 text=prompt_text,
                 fill=MENU_DETAIL_SUBTEXT,
                 font=SLIDER_LABEL_FONT,
@@ -5005,7 +5122,7 @@ class QuickMenuOverlay:
             self.draw_prompt_hint(
                 card,
                 content_left,
-                title_y + DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y,
+                note_y,
                 prompt_icon,
                 prompt_text,
                 MENU_DETAIL_SUBTEXT,
@@ -5014,16 +5131,61 @@ class QuickMenuOverlay:
         if key == UPDATE_ITEM_KEY:
             card.create_text(
                 content_right,
-                title_y + DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y,
+                note_y,
                 text=note_text,
                 fill=MENU_DETAIL_SUBTEXT,
                 font=SLIDER_LABEL_FONT,
                 anchor="e",
             )
 
+        button_top_anchor = note_y
+        if key == UPDATE_ITEM_KEY:
+            note_entries = self.software_update_note_entries(width)
+            if note_entries:
+                line_height = measure_text_height(SLIDER_LABEL_FONT)
+                section_y = note_y + DETAIL_CONFIRM_PANEL_CHANGES_TOP_GAP
+                card.create_text(
+                    content_left,
+                    section_y,
+                    text="Changes in this update",
+                    fill=MENU_DETAIL_TEXT,
+                    font=SLIDER_LABEL_FONT,
+                    anchor="nw",
+                )
+
+                note_y_pos = section_y + line_height + DETAIL_CONFIRM_PANEL_CHANGES_LABEL_GAP
+                bullet_x = content_left
+                text_x = content_left + DETAIL_CONFIRM_PANEL_CHANGES_BULLET_GAP
+                for index, entry in enumerate(note_entries):
+                    card.create_text(
+                        bullet_x,
+                        note_y_pos,
+                        text="-",
+                        fill=MENU_DETAIL_SUBTEXT,
+                        font=SLIDER_LABEL_FONT,
+                        anchor="nw",
+                    )
+                    line_y = note_y_pos
+                    for line_index, line in enumerate(entry["lines"]):
+                        card.create_text(
+                            text_x,
+                            line_y,
+                            text=line,
+                            fill=MENU_DETAIL_SUBTEXT,
+                            font=SLIDER_LABEL_FONT,
+                            anchor="nw",
+                        )
+                        line_y += line_height
+                        if line_index < len(entry["lines"]) - 1:
+                            line_y += DETAIL_CONFIRM_PANEL_CHANGES_LINE_GAP
+                    note_y_pos = line_y
+                    if index < len(note_entries) - 1:
+                        note_y_pos += DETAIL_CONFIRM_PANEL_CHANGES_ITEM_GAP
+                button_top_anchor = note_y_pos
+
         button_x1 = content_left
         button_x2 = content_right
-        button_y1 = title_y + DETAIL_CONFIRM_PANEL_NOTE_OFFSET_Y + DETAIL_CONFIRM_PANEL_BUTTON_TOP_GAP
+        button_y1 = button_top_anchor + DETAIL_CONFIRM_PANEL_BUTTON_TOP_GAP
         button_y2 = button_y1 + DETAIL_CONFIRM_PANEL_BUTTON_HEIGHT
         draw_bordered_rounded_rect(
             card,
