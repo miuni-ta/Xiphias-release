@@ -1918,8 +1918,11 @@ def find_gamepad():
     gamepad_candidates = []
     named_candidates = []
     for path in evdev.list_devices():
-        dev = evdev.InputDevice(path)
-        caps = dev.capabilities()
+        try:
+            dev = evdev.InputDevice(path)
+            caps = dev.capabilities()
+        except OSError:
+            continue
         name = dev.name.lower()
         if any(token in name for token in TOUCH_TOKENS):
             continue

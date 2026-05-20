@@ -1,7 +1,7 @@
 [Unit]
 Description=KNF GameHub kiosk
-After=systemd-user-sessions.service network-online.target sound.target
-Wants=network-online.target
+After=systemd-user-sessions.service network-online.target sound.target xiphias-gpio-gamepad.service
+Wants=network-online.target xiphias-gpio-gamepad.service
 Conflicts=getty@tty1.service
 
 [Service]

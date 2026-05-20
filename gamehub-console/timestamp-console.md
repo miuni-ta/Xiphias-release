@@ -11,6 +11,11 @@ Use this file to keep a dated record of kiosk changes made on the Raspberry Pi. 
 - Verification: commands run or behavior checked on-device.
 ```
 
+## 2026-05-20 16:35:35 +0800
+- Summary: Fixed GPIO controller navigation by restoring the missing `ecodes` import in the browser cursor daemon, hardening HUD gamepad discovery against input hotplug races, and making the kiosk explicitly start after the GPIO gamepad service.
+- Files: `gamepad_cursor.py`, `hud_overlay.py`, `files/knf-kiosk.service`, `timestamp-console.md`, `/etc/systemd/system/knf-kiosk.service`.
+- Verification: Confirmed `xiphias-gpio-gamepad.service` exposes `Xiphias GPIO Gamepad` on `/dev/input/event10` and `/dev/input/js0` with joystick udev tagging, ran `python3 -m py_compile /home/pi/Xiphias/release/gamehub-console/gamepad_cursor.py /home/pi/Xiphias/release/gamehub-console/hud_overlay.py /home/pi/Xiphias/release/gamehub-console/gpio_gamepad.py`, ran `bash -n` on the kiosk shell scripts, restarted the kiosk, confirmed live `gpio_gamepad.py`, `gamepad_cursor.py`, `hud_overlay.py`, and Chromium processes, confirmed both `gamepad_cursor.find_gamepad()` and `hud_overlay.find_gamepad()` select `/dev/input/event10` named `Xiphias GPIO Gamepad`, enabled `xiphias-gpio-gamepad.service`, reloaded systemd, and verified the installed `knf-kiosk.service` now wants and starts after `xiphias-gpio-gamepad.service`.
+
 ## 2026-04-07 11:06:41 +0800
 - Summary: Moved the splash jingle into a shared helper and added a new `Splash` row to the live Settings overlay so pressing `A` there plays the current splashscreen audio on demand for testing.
 - Files: `splash_audio.py`, `boot_splash.py`, `hud_overlay.py`, `AGENTS.md`, `timestamp-console.md`, `/home/pi/backup/AGENTS-20260407-110332.md`.

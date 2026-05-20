@@ -12,6 +12,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 import evdev
+from evdev import ecodes
 import websocket
 
 from audio_output import detect_output_format, get_shared_audio_output
