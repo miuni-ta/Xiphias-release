@@ -246,6 +246,9 @@ maybe_enable_i2c
 run_root install -d -m 755 /etc/modules-load.d
 run_root install -m 644 "${BASE_DIR}/files/uinput.conf" /etc/modules-load.d/xiphias-uinput.conf
 run_root modprobe uinput || true
+run_root install -d -m 755 /etc/udev/rules.d
+run_root install -m 644 "${BASE_DIR}/files/99-xiphias-gpio-gamepad.rules" /etc/udev/rules.d/99-xiphias-gpio-gamepad.rules
+run_root udevadm control --reload-rules || true
 
 echo "[6/9] Installing service..."
 run_root install -m 644 "${BASE_DIR}/files/knf-kiosk.service" /etc/systemd/system/knf-kiosk.service

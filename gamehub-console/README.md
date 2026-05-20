@@ -51,6 +51,7 @@ Your `Debian GNU/Linux 13 (trixie)` version string is normal for current Raspber
 - `files/xinitrc`: X11 startup file
 - `files/knf-kiosk.service`: systemd service for auto-start
 - `files/xiphias-gpio-gamepad.service`: systemd service for the external GPIO controls
+- `files/99-xiphias-gpio-gamepad.rules`: udev rule that tags the GPIO bridge as a joystick/gamepad
 - `files/90-xiphias-release-home`: systemd user-environment generator that keeps user-session config inside `release/`
 - `files/openbox/autostart`: launches the HUD, controller, and browser
 
@@ -115,7 +116,7 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 
 ## External GPIO Gamepad
 
-Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a real evdev device named `Xiphias GPIO Gamepad`. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.
+Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a USB-style evdev gamepad named `Xiphias GPIO Gamepad`. A bundled udev rule tags that device as a joystick/gamepad so the OS, Chromium, and Xiphias treat it like a generic USB controller instead of a keyboard. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.
 
 Default BCM GPIO mapping:
 
@@ -164,7 +165,7 @@ Then run:
 bash /home/pi/Xiphias/release/gamehub-console/ota_git_update.sh
 ```
 
-If the OTA also changes `.xinitrc`, either systemd service, the cron file, the sudoers file, or the `uinput` module config, run:
+If the OTA also changes `.xinitrc`, either systemd service, the cron file, the sudoers file, the `uinput` module config, or the GPIO gamepad udev rule, run:
 
 ```bash
 bash /home/pi/Xiphias/release/gamehub-console/ota_git_update.sh --apply-system-files

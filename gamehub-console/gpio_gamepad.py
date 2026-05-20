@@ -13,9 +13,14 @@ from common import load_config
 
 DEVICE_NAME = "Xiphias GPIO Gamepad"
 AXIS_MAX = 32767
+TRIGGER_MAX = 255
 DEFAULT_BOUNCE_MS = 20
 DEFAULT_ACTIVE_LOW = True
 GPIOZERO_PIN_FACTORY = "lgpio"
+USB_STYLE_VENDOR_ID = 0x1209
+USB_STYLE_PRODUCT_ID = 0x5848
+USB_STYLE_VERSION = 0x0100
+USB_STYLE_BUSTYPE = getattr(ecodes, "BUS_USB", 0x03)
 
 
 @dataclass(frozen=True)
@@ -45,6 +50,11 @@ CONTROLS = (
     GpioControl("left_trigger", "GPIO_GAMEPAD_L2", 11, "button", code=ecodes.BTN_TL2),
     GpioControl("right_trigger", "GPIO_GAMEPAD_R2", 7, "button", code=ecodes.BTN_TR2),
 )
+
+TRIGGER_AXES = {
+    "left_trigger": ecodes.ABS_Z,
+    "right_trigger": ecodes.ABS_RZ,
+}
 
 
 def log(message):
@@ -102,6 +112,7 @@ def configured_controls(config):
 
 def build_uinput():
     abs_axis = AbsInfo(value=0, min=-AXIS_MAX, max=AXIS_MAX, fuzz=0, flat=0, resolution=0)
+    trigger_axis = AbsInfo(value=0, min=0, max=TRIGGER_MAX, fuzz=0, flat=0, resolution=0)
     hat_axis = AbsInfo(value=0, min=-1, max=1, fuzz=0, flat=0, resolution=0)
     capabilities = {
         ecodes.EV_KEY: [
@@ -119,11 +130,22 @@ def build_uinput():
         ecodes.EV_ABS: [
             (ecodes.ABS_X, abs_axis),
             (ecodes.ABS_Y, abs_axis),
+            (ecodes.ABS_RX, abs_axis),
+            (ecodes.ABS_RY, abs_axis),
+            (ecodes.ABS_Z, trigger_axis),
+            (ecodes.ABS_RZ, trigger_axis),
             (ecodes.ABS_HAT0X, hat_axis),
             (ecodes.ABS_HAT0Y, hat_axis),
         ],
     }
-    return UInput(capabilities, name=DEVICE_NAME, bustype=getattr(ecodes, "BUS_VIRTUAL", 0x06))
+    return UInput(
+        capabilities,
+        name=DEVICE_NAME,
+        vendor=USB_STYLE_VENDOR_ID,
+        product=USB_STYLE_PRODUCT_ID,
+        version=USB_STYLE_VERSION,
+        bustype=USB_STYLE_BUSTYPE,
+    )
 
 
 class GpioGamepad:
@@ -158,9 +180,12 @@ class GpioGamepad:
             for control, _pin in self.controls:
                 if control.kind == "button":
                     self.ui.write(ecodes.EV_KEY, control.code, 0)
+                    self.write_trigger_axis_unlocked(control, False)
             self.axis_state = {"x": 0, "y": 0}
             self.write_axis_unlocked("x", 0)
             self.write_axis_unlocked("y", 0)
+            self.ui.write(ecodes.EV_ABS, ecodes.ABS_RX, 0)
+            self.ui.write(ecodes.EV_ABS, ecodes.ABS_RY, 0)
             self.ui.syn()
 
         for button in self.buttons:
@@ -179,9 +204,16 @@ class GpioGamepad:
 
             if control.kind == "button":
                 self.ui.write(ecodes.EV_KEY, control.code, 1 if pressed else 0)
+                self.write_trigger_axis_unlocked(control, pressed)
             elif control.kind == "axis":
                 self.update_axis_unlocked(control.axis)
             self.ui.syn()
+
+    def write_trigger_axis_unlocked(self, control, pressed):
+        axis_code = TRIGGER_AXES.get(control.name)
+        if axis_code is None:
+            return
+        self.ui.write(ecodes.EV_ABS, axis_code, TRIGGER_MAX if pressed else 0)
 
     def update_axis_unlocked(self, axis):
         if axis == "x":

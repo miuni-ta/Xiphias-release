@@ -10,6 +10,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Added native external GPIO gamepad support for the Xiphias handheld, exposing the 14-button BCM GPIO wiring as a virtual `Xiphias GPIO Gamepad` evdev device.
 - Added installer, image-builder, and OTA system-file hooks for the GPIO gamepad service and `uinput` module loading.
 - Updated controller handling so the GPIO D-pad moves the cursor without also scrolling the hosted page, while still navigating the runtime Settings overlay through HAT events.
+- Tightened the GPIO bridge to present as a USB-style generic controller, including udev joystick/gamepad tagging and L2/R2 trigger-axis events for better Chromium and OS compatibility.
 
 ## 2026-04-14
 
