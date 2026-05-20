@@ -163,7 +163,9 @@ run_root apt install -y \
   xserver-xorg \
   python3-evdev \
   python3-gi \
+  python3-gpiozero \
   python3-pygame \
+  python3-lgpio \
   python3-smbus2 \
   python3-tk \
   python3-websocket \
@@ -241,9 +243,13 @@ EOF
 echo "[5/9] Configuring boot splash..."
 run_root bash "${BASE_DIR}/configure_boot_splash.sh"
 maybe_enable_i2c
+run_root install -d -m 755 /etc/modules-load.d
+run_root install -m 644 "${BASE_DIR}/files/uinput.conf" /etc/modules-load.d/xiphias-uinput.conf
+run_root modprobe uinput || true
 
 echo "[6/9] Installing service..."
 run_root install -m 644 "${BASE_DIR}/files/knf-kiosk.service" /etc/systemd/system/knf-kiosk.service
+run_root install -m 644 "${BASE_DIR}/files/xiphias-gpio-gamepad.service" /etc/systemd/system/xiphias-gpio-gamepad.service
 run_root install -m 644 "${BASE_DIR}/files/xiphias-firstboot.service" /etc/systemd/system/xiphias-firstboot.service
 run_root install -m 755 "${BASE_DIR}/files/xiphias-firstboot.sh" /usr/local/sbin/xiphias-firstboot.sh
 run_root install -d -m 755 /etc/systemd/user-environment-generators
@@ -254,6 +260,7 @@ run_root install -m 644 "${BASE_DIR}/files/gamehub-console-backup.cron" /etc/cro
 echo "[7/9] Enabling services..."
 if [[ "${INSTALL_MODE}" == "live" ]]; then
   run_root systemctl daemon-reload
+  run_root systemctl enable xiphias-gpio-gamepad.service
   run_root systemctl enable knf-kiosk.service
   run_root systemctl enable NetworkManager
   run_root systemctl disable lightdm.service >/dev/null 2>&1 || true
@@ -282,6 +289,7 @@ chmod +x \
   "${BASE_DIR}/restart_kiosk.sh" \
   "${BASE_DIR}/set_backlight.sh" \
   "${BASE_DIR}/start_kiosk_components.sh" \
+  "${BASE_DIR}/gpio_gamepad.py" \
   "${BASE_DIR}/gamepad_cursor.py" \
   "${BASE_DIR}/hud_overlay.py" \
   "${BASE_DIR}/waveshare_ups_battery.py"
@@ -296,6 +304,7 @@ if [[ "${INSTALL_MODE}" == "live" ]]; then
   echo "- keep the GameHub splash on-screen during early boot and shutdown"
   echo "- launch Chromium on your GameHub URL"
   echo "- keep touch and gamepad input available in the kiosk"
+  echo "- expose the external GPIO buttons as the Xiphias GPIO Gamepad"
 else
   echo "Image mode complete."
 fi

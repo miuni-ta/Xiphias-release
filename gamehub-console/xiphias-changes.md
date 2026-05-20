@@ -5,6 +5,12 @@ Update this file whenever behavior, deployment, image-building, OTA, or kiosk UX
 
 Detailed historical kiosk notes before this file existed still live in `timestamp-console.md`.
 
+## 2026-05-20
+
+- Added native external GPIO gamepad support for the Xiphias handheld, exposing the 14-button BCM GPIO wiring as a virtual `Xiphias GPIO Gamepad` evdev device.
+- Added installer, image-builder, and OTA system-file hooks for the GPIO gamepad service and `uinput` module loading.
+- Updated controller handling so the GPIO D-pad moves the cursor without also scrolling the hosted page, while still navigating the runtime Settings overlay through HAT events.
+
 ## 2026-04-14
 
 - Added this `xiphias-changes.md` file as the canonical high-level project change log.

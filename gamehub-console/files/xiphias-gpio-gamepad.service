@@ -1,0 +1,18 @@
+[Unit]
+Description=Xiphias GPIO gamepad
+Documentation=https://leandrolinares.com/blog/diy-handheld-game-console/#raspberry-pi-pinout
+After=systemd-modules-load.service local-fs.target
+Before=knf-kiosk.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/pi/Xiphias/release/gamehub-console
+Environment=GPIOZERO_PIN_FACTORY=lgpio
+ExecStart=/usr/bin/python3 /home/pi/Xiphias/release/gamehub-console/gpio_gamepad.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

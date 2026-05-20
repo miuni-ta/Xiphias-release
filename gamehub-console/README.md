@@ -45,10 +45,12 @@ Your `Debian GNU/Linux 13 (trixie)` version string is normal for current Raspber
 - `launch_chromium.sh`: launches the website in kiosk mode
 - `restart_kiosk.sh`: quickly restarts the kiosk HUD, controller daemon, and Chromium inside the current X session without rebooting the device
 - `ota_git_update.sh`: pulls a staged release from GitHub and deploys only the managed kiosk files into the live Xiphias tree
+- `gpio_gamepad.py`: reads the external GPIO button wiring and exposes it as the virtual `Xiphias GPIO Gamepad`
 - `gamepad_cursor.py`: gamepad-to-mouse bridge
 - `hud_overlay.py`: top and bottom HUD bars
 - `files/xinitrc`: X11 startup file
 - `files/knf-kiosk.service`: systemd service for auto-start
+- `files/xiphias-gpio-gamepad.service`: systemd service for the external GPIO controls
 - `files/90-xiphias-release-home`: systemd user-environment generator that keeps user-session config inside `release/`
 - `files/openbox/autostart`: launches the HUD, controller, and browser
 
@@ -102,6 +104,7 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 ## Main Controls
 
 - Left stick: move mouse
+- External GPIO D-pad: move mouse, and navigate Settings while the overlay is open
 - `A`: left click
 - `B` tap: right click
 - `B` hold for 2 seconds: go home by closing the current tab
@@ -109,6 +112,31 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 - `Start`: no HUD action in the current checkout
 - `LB` / `RB`: scroll up / down
 - D-pad up / down: scroll
+
+## External GPIO Gamepad
+
+Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a real evdev device named `Xiphias GPIO Gamepad`. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.
+
+Default BCM GPIO mapping:
+
+```text
+D-PAD UP       GPIO19
+D-PAD DOWN     GPIO5
+D-PAD LEFT    GPIO13
+D-PAD RIGHT    GPIO6
+START         GPIO26
+SELECT        GPIO10
+A             GPIO20
+B             GPIO21
+X             GPIO12
+Y             GPIO16
+L1             GPIO9
+R1             GPIO8
+L2            GPIO11
+R2             GPIO7
+```
+
+Each button should connect between its BCM GPIO pin and ground. The daemon uses internal pull-ups by default, so no external pull-up resistors are required for the standard active-low wiring. The defaults can be changed in `console.env` with `GPIO_GAMEPAD_*` values, and the whole feature can be disabled with `GPIO_GAMEPAD_ENABLED=0`.
 
 ## Git OTA Updates
 
@@ -136,7 +164,7 @@ Then run:
 bash /home/pi/Xiphias/release/gamehub-console/ota_git_update.sh
 ```
 
-If the OTA also changes `.xinitrc`, the systemd service, the cron file, or the sudoers file, run:
+If the OTA also changes `.xinitrc`, either systemd service, the cron file, the sudoers file, or the `uinput` module config, run:
 
 ```bash
 bash /home/pi/Xiphias/release/gamehub-console/ota_git_update.sh --apply-system-files

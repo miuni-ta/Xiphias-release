@@ -47,7 +47,8 @@ managed kiosk paths into ${LIVE_ROOT}.
 
 Options:
   --check-only         Check GitHub for changes without deploying anything.
-  --apply-system-files  Install the service, user env generator, cron, and sudoers files to /etc.
+  --apply-system-files  Install the services, user env generator, cron, sudoers,
+                        and uinput module config to /etc.
   --skip-backup         Skip the pre-deploy rollback zip.
   --no-restart          Do not restart kiosk processes after deploy.
   --help                Show this help text.
@@ -619,10 +620,17 @@ apply_system_files() {
   sudo install -m 644 \
     "${LIVE_ROOT}/gamehub-console/files/knf-kiosk.service" \
     /etc/systemd/system/knf-kiosk.service
+  sudo install -m 644 \
+    "${LIVE_ROOT}/gamehub-console/files/xiphias-gpio-gamepad.service" \
+    /etc/systemd/system/xiphias-gpio-gamepad.service
   sudo install -d -m 755 /etc/systemd/user-environment-generators
   sudo install -m 755 \
     "${LIVE_ROOT}/gamehub-console/files/90-xiphias-release-home" \
     /etc/systemd/user-environment-generators/90-xiphias-release-home
+  sudo install -d -m 755 /etc/modules-load.d
+  sudo install -m 644 \
+    "${LIVE_ROOT}/gamehub-console/files/uinput.conf" \
+    /etc/modules-load.d/xiphias-uinput.conf
   sudo install -m 644 \
     "${LIVE_ROOT}/gamehub-console/files/gamehub-console-backup.cron" \
     /etc/cron.d/gamehub-console-backup
@@ -630,7 +638,9 @@ apply_system_files() {
     "${LIVE_ROOT}/gamehub-console/files/gamehub-console-sudoers" \
     /etc/sudoers.d/gamehub-console
   sudo visudo -c -f /etc/sudoers.d/gamehub-console
+  sudo modprobe uinput || true
   sudo systemctl daemon-reload
+  sudo systemctl enable xiphias-gpio-gamepad.service
   if [[ -d "/run/user/$(id -u)" ]]; then
     sudo -u "$(id -un)" XDG_RUNTIME_DIR="/run/user/$(id -u)" systemctl --user daemon-reload || true
   fi

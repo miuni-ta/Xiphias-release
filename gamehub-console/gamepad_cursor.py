@@ -67,6 +67,7 @@ ONBOARD_COLORS = os.path.join(ONBOARD_THEME_DIR, "gamepad_dark.colors")
 ONBOARD_LAYOUT = os.path.join(BASE_DIR, "gamepad_keyboard.onboard")
 ONBOARD_LAYOUT_SVG = os.path.join(BASE_DIR, "gamepad_keyboard.svg")
 WRAPPER_URL_PREFIX = (REPO_ROOT / "kiosk-wrapper.html").resolve().as_uri()
+GPIO_GAMEPAD_NAME_TOKEN = "xiphias gpio gamepad"
 KEYBOARD_WIDTH = SCREEN_WIDTH
 KEYBOARD_HEIGHT = 180
 KEYBOARD_X = 0
@@ -540,6 +541,7 @@ def run_command(args):
 
 
 def find_gamepad():
+    gpio_gamepad = None
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
         caps = dev.capabilities()
@@ -547,8 +549,18 @@ def find_gamepad():
         if any(token in name for token in TOUCH_TOKENS):
             continue
         if evdev.ecodes.EV_KEY in caps and evdev.ecodes.EV_ABS in caps:
+            if GPIO_GAMEPAD_NAME_TOKEN in name:
+                gpio_gamepad = dev
+                continue
             return dev
-    return None
+    return gpio_gamepad
+
+
+def device_is_gpio_gamepad(dev):
+    try:
+        return GPIO_GAMEPAD_NAME_TOKEN in dev.name.lower()
+    except Exception:
+        return False
 
 
 def find_touchscreen():
@@ -1311,6 +1323,7 @@ class Controller:
         self.ddown_held = False
         self.last_touch_check = 0.0
         self.axis_info = {}
+        self.current_device_is_gpio_gamepad = False
         self.cursor_x = None
         self.cursor_y = None
         self.cursor_remainder_x = 0.0
@@ -1320,6 +1333,7 @@ class Controller:
 
     def configure_device(self, dev):
         self.axis_info = {}
+        self.current_device_is_gpio_gamepad = device_is_gpio_gamepad(dev)
         for axis_code in (evdev.ecodes.ABS_X, evdev.ecodes.ABS_Y):
             try:
                 info = dev.absinfo(axis_code)
@@ -1520,8 +1534,9 @@ class Controller:
                 elif event.code == evdev.ecodes.ABS_Y:
                     self.ay = self.norm_axis(evdev.ecodes.ABS_Y, event.value)
                 elif event.code == evdev.ecodes.ABS_HAT0Y:
-                    self.dup_held = event.value == -1
-                    self.ddown_held = event.value == 1
+                    if not self.current_device_is_gpio_gamepad:
+                        self.dup_held = event.value == -1
+                        self.ddown_held = event.value == 1
 
             elif event.type == evdev.ecodes.EV_KEY:
                 code = event.code
@@ -1542,9 +1557,9 @@ class Controller:
                     click("middle")
                 elif code == evdev.ecodes.BTN_NORTH and value == 1:
                     toggle_keyboard()
-                elif code == evdev.ecodes.BTN_TL:
+                elif code in {evdev.ecodes.BTN_TL, evdev.ecodes.BTN_TL2}:
                     self.lb_held = value == 1
-                elif code == evdev.ecodes.BTN_TR:
+                elif code in {evdev.ecodes.BTN_TR, evdev.ecodes.BTN_TR2}:
                     self.rb_held = value == 1
 
     def run(self):

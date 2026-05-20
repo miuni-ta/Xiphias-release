@@ -64,6 +64,7 @@ OTA_UPDATE_CMD = ["bash", str(WORKSPACE_ROOT / "release" / "gamehub-console" / "
 SET_BACKLIGHT_CMD = [str(REPO_ROOT / "set_backlight.sh")]
 NMCLI_CMD = ["/usr/bin/nmcli"]
 PRIVILEGED_NMCLI_CMD = ["sudo", "-n", "/usr/bin/nmcli"]
+GPIO_GAMEPAD_NAME_TOKEN = "xiphias gpio gamepad"
 STANDARD_TOUCH_CURSOR = touchscreen_present()
 
 BG = "#0a0d12"
@@ -1888,6 +1889,7 @@ def battery_icon_color(percent, charging):
 
 
 def find_gamepad():
+    gpio_gamepad = None
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
         caps = dev.capabilities()
@@ -1895,8 +1897,11 @@ def find_gamepad():
         if any(token in name for token in TOUCH_TOKENS):
             continue
         if evdev.ecodes.EV_KEY in caps and evdev.ecodes.EV_ABS in caps:
+            if GPIO_GAMEPAD_NAME_TOKEN in name:
+                gpio_gamepad = dev
+                continue
             return dev
-    return None
+    return gpio_gamepad
 
 
 def restart_kiosk():
