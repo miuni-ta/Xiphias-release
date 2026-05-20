@@ -45,6 +45,7 @@ Your `Debian GNU/Linux 13 (trixie)` version string is normal for current Raspber
 - `launch_chromium.sh`: launches the website in kiosk mode
 - `restart_kiosk.sh`: quickly restarts the kiosk HUD, controller daemon, and Chromium inside the current X session without rebooting the device
 - `ota_git_update.sh`: pulls a staged release from GitHub and deploys only the managed kiosk files into the live Xiphias tree
+- `check_gpio_gamepad.sh`: prints GPIO gamepad service, uinput, dependency, input-device, udev, and journal diagnostics
 - `gpio_gamepad.py`: reads the external GPIO button wiring and exposes it as the virtual `Xiphias GPIO Gamepad`
 - `gamepad_cursor.py`: gamepad-to-mouse bridge
 - `hud_overlay.py`: top and bottom HUD bars

@@ -292,6 +292,7 @@ chmod +x \
   "${BASE_DIR}/restart_kiosk.sh" \
   "${BASE_DIR}/set_backlight.sh" \
   "${BASE_DIR}/start_kiosk_components.sh" \
+  "${BASE_DIR}/check_gpio_gamepad.sh" \
   "${BASE_DIR}/gpio_gamepad.py" \
   "${BASE_DIR}/gamepad_cursor.py" \
   "${BASE_DIR}/hud_overlay.py" \

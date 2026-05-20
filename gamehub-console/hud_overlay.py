@@ -65,6 +65,32 @@ SET_BACKLIGHT_CMD = [str(REPO_ROOT / "set_backlight.sh")]
 NMCLI_CMD = ["/usr/bin/nmcli"]
 PRIVILEGED_NMCLI_CMD = ["sudo", "-n", "/usr/bin/nmcli"]
 GPIO_GAMEPAD_NAME_TOKEN = "xiphias gpio gamepad"
+GAMEPAD_NAME_TOKENS = (
+    "gamepad",
+    "joystick",
+    "controller",
+    "x-box",
+    "xbox",
+    "xinput",
+    "dualshock",
+    "dualsense",
+    "8bitdo",
+)
+GAMEPAD_BUTTON_CODES = {
+    evdev.ecodes.BTN_SOUTH,
+    evdev.ecodes.BTN_EAST,
+    evdev.ecodes.BTN_NORTH,
+    evdev.ecodes.BTN_WEST,
+    evdev.ecodes.BTN_START,
+    evdev.ecodes.BTN_SELECT,
+    evdev.ecodes.BTN_MODE,
+    evdev.ecodes.BTN_TL,
+    evdev.ecodes.BTN_TR,
+    evdev.ecodes.BTN_TL2,
+    evdev.ecodes.BTN_TR2,
+    evdev.ecodes.BTN_GAMEPAD,
+    evdev.ecodes.BTN_JOYSTICK,
+}
 STANDARD_TOUCH_CURSOR = touchscreen_present()
 
 BG = "#0a0d12"
@@ -1889,19 +1915,29 @@ def battery_icon_color(percent, charging):
 
 
 def find_gamepad():
-    gpio_gamepad = None
+    gamepad_candidates = []
+    named_candidates = []
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
         caps = dev.capabilities()
         name = dev.name.lower()
         if any(token in name for token in TOUCH_TOKENS):
             continue
-        if evdev.ecodes.EV_KEY in caps and evdev.ecodes.EV_ABS in caps:
-            if GPIO_GAMEPAD_NAME_TOKEN in name:
-                gpio_gamepad = dev
-                continue
+        if evdev.ecodes.EV_KEY not in caps or evdev.ecodes.EV_ABS not in caps:
+            continue
+        if GPIO_GAMEPAD_NAME_TOKEN in name:
             return dev
-    return gpio_gamepad
+        key_codes = set(caps.get(evdev.ecodes.EV_KEY, []))
+        if key_codes & GAMEPAD_BUTTON_CODES:
+            gamepad_candidates.append(dev)
+            continue
+        if any(token in name for token in GAMEPAD_NAME_TOKENS):
+            named_candidates.append(dev)
+    if gamepad_candidates:
+        return gamepad_candidates[0]
+    if named_candidates:
+        return named_candidates[0]
+    return None
 
 
 def restart_kiosk():

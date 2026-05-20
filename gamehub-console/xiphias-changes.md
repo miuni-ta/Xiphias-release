@@ -11,6 +11,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Added installer, image-builder, and OTA system-file hooks for the GPIO gamepad service and `uinput` module loading.
 - Updated controller handling so the GPIO D-pad moves the cursor without also scrolling the hosted page, while still navigating the runtime Settings overlay through HAT events.
 - Tightened the GPIO bridge to present as a USB-style generic controller, including udev joystick/gamepad tagging and L2/R2 trigger-axis events for better Chromium and OS compatibility.
+- Fixed GPIO controller detection so Xiphias prefers the `Xiphias GPIO Gamepad` device and ignores unrelated absolute-axis input devices, and added a Pi-side diagnostic script for service, uinput, dependency, udev, and journal checks.
 
 ## 2026-04-14
 

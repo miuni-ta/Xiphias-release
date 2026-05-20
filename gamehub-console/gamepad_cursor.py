@@ -68,6 +68,32 @@ ONBOARD_LAYOUT = os.path.join(BASE_DIR, "gamepad_keyboard.onboard")
 ONBOARD_LAYOUT_SVG = os.path.join(BASE_DIR, "gamepad_keyboard.svg")
 WRAPPER_URL_PREFIX = (REPO_ROOT / "kiosk-wrapper.html").resolve().as_uri()
 GPIO_GAMEPAD_NAME_TOKEN = "xiphias gpio gamepad"
+GAMEPAD_NAME_TOKENS = (
+    "gamepad",
+    "joystick",
+    "controller",
+    "x-box",
+    "xbox",
+    "xinput",
+    "dualshock",
+    "dualsense",
+    "8bitdo",
+)
+GAMEPAD_BUTTON_CODES = {
+    ecodes.BTN_SOUTH,
+    ecodes.BTN_EAST,
+    ecodes.BTN_NORTH,
+    ecodes.BTN_WEST,
+    ecodes.BTN_START,
+    ecodes.BTN_SELECT,
+    ecodes.BTN_MODE,
+    ecodes.BTN_TL,
+    ecodes.BTN_TR,
+    ecodes.BTN_TL2,
+    ecodes.BTN_TR2,
+    ecodes.BTN_GAMEPAD,
+    ecodes.BTN_JOYSTICK,
+}
 KEYBOARD_WIDTH = SCREEN_WIDTH
 KEYBOARD_HEIGHT = 180
 KEYBOARD_X = 0
@@ -541,19 +567,29 @@ def run_command(args):
 
 
 def find_gamepad():
-    gpio_gamepad = None
+    gamepad_candidates = []
+    named_candidates = []
     for path in evdev.list_devices():
         dev = evdev.InputDevice(path)
         caps = dev.capabilities()
         name = dev.name.lower()
         if any(token in name for token in TOUCH_TOKENS):
             continue
-        if evdev.ecodes.EV_KEY in caps and evdev.ecodes.EV_ABS in caps:
-            if GPIO_GAMEPAD_NAME_TOKEN in name:
-                gpio_gamepad = dev
-                continue
+        if evdev.ecodes.EV_KEY not in caps or evdev.ecodes.EV_ABS not in caps:
+            continue
+        if GPIO_GAMEPAD_NAME_TOKEN in name:
             return dev
-    return gpio_gamepad
+        key_codes = set(caps.get(evdev.ecodes.EV_KEY, []))
+        if key_codes & GAMEPAD_BUTTON_CODES:
+            gamepad_candidates.append(dev)
+            continue
+        if any(token in name for token in GAMEPAD_NAME_TOKENS):
+            named_candidates.append(dev)
+    if gamepad_candidates:
+        return gamepad_candidates[0]
+    if named_candidates:
+        return named_candidates[0]
+    return None
 
 
 def device_is_gpio_gamepad(dev):
