@@ -12,6 +12,7 @@ WorkingDirectory=/home/pi/Xiphias/release/gamehub-console
 Environment=GPIOZERO_PIN_FACTORY=lgpio
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=-/usr/sbin/modprobe uinput
+ExecStartPre=-/usr/sbin/modprobe joydev
 ExecStart=/usr/bin/python3 /home/pi/Xiphias/release/gamehub-console/gpio_gamepad.py
 Restart=always
 RestartSec=2

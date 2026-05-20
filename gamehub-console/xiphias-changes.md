@@ -12,6 +12,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Updated controller handling so the GPIO D-pad moves the cursor without also scrolling the hosted page, while still navigating the runtime Settings overlay through HAT events.
 - Tightened the GPIO bridge to present as a USB-style generic controller, including udev joystick/gamepad tagging and L2/R2 trigger-axis events for better Chromium and OS compatibility.
 - Fixed GPIO controller detection so Xiphias prefers the `Xiphias GPIO Gamepad` device and ignores unrelated absolute-axis input devices, and added a Pi-side diagnostic script for service, uinput, dependency, udev, and journal checks.
+- Added `joydev` loading for the GPIO virtual controller so Chromium/browser gamepad paths can see a `/dev/input/js*` joystick node, and expanded the GPIO diagnostic script to print configured BCM pins plus live pressed/released pin states.
 
 ## 2026-04-14
 

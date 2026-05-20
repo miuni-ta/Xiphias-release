@@ -119,6 +119,8 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 
 Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a USB-style evdev gamepad named `Xiphias GPIO Gamepad`. A bundled udev rule tags that device as a joystick/gamepad so the OS, Chromium, and Xiphias treat it like a generic USB controller instead of a keyboard. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.
 
+The installer loads both `uinput` and `joydev`. `uinput` lets Xiphias create the virtual controller, while `joydev` exposes the companion `/dev/input/js*` joystick node that Chromium and browser gamepad code commonly expect.
+
 Default BCM GPIO mapping:
 
 ```text
@@ -139,6 +141,15 @@ R2             GPIO7
 ```
 
 Each button should connect between its BCM GPIO pin and ground. The daemon uses internal pull-ups by default, so no external pull-up resistors are required for the standard active-low wiring. The defaults can be changed in `console.env` with `GPIO_GAMEPAD_*` values, and the whole feature can be disabled with `GPIO_GAMEPAD_ENABLED=0`.
+
+To check the GPIO controller on-device, run:
+
+```bash
+cd /home/pi/Xiphias/release/gamehub-console
+sudo bash check_gpio_gamepad.sh
+```
+
+That check prints the service state, `uinput`/`joydev` module state, configured BCM pin mapping, live GPIO pressed/released states, input devices, `/dev/input/js*` joystick nodes, udev gamepad tags, and recent service logs.
 
 ## Git OTA Updates
 
