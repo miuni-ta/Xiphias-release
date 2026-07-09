@@ -115,6 +115,10 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 - `LB` / `RB`: scroll up / down
 - D-pad up / down: scroll
 
+## Settings Button Tester
+
+The Settings overlay includes `Button Tester` directly after `Bluetooth`. Open it with `A` to show a large controller diagram that listens to every detected gamepad-like evdev device, including USB controllers and the virtual `Xiphias GPIO Gamepad`. Pressed controls highlight live on the diagram. Short presses of `A`, `B`, and `Start` are test inputs while the tester is open; hold `Start` for about 1.5 seconds to close the tester and return to normal Settings navigation.
+
 ## External GPIO Gamepad
 
 Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a USB-style evdev gamepad named `Xiphias GPIO Gamepad`. A bundled udev rule tags that device as a joystick/gamepad so the OS, Chromium, and Xiphias treat it like a generic USB controller instead of a keyboard. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.

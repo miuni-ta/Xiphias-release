@@ -5,6 +5,10 @@ Update this file whenever behavior, deployment, image-building, OTA, or kiosk UX
 
 Detailed historical kiosk notes before this file existed still live in `timestamp-console.md`.
 
+## 2026-07-09
+
+- Added a Settings `Button Tester` row after `Bluetooth`, opening a canvas-drawn controller diagram that listens to USB and GPIO gamepads, highlights live button input, suppresses normal Settings actions while testing, and exits on held `Start`.
+
 ## 2026-05-20
 
 - Added native external GPIO gamepad support for the Xiphias handheld, exposing the 14-button BCM GPIO wiring as a virtual `Xiphias GPIO Gamepad` evdev device.

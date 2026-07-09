@@ -56,8 +56,8 @@ HEADER_LEFT_PAD = 18
 HEADER_BOTTOM_PAD = 18
 ROW_X = 4
 ROW_WIDTH = SCREEN_W - 8
-ROW_HEIGHT = 44
-ROW_GAP = 8
+ROW_HEIGHT = 40
+ROW_GAP = 6
 ROW_RADIUS = 14
 ROW_ICON_X = 30
 ROW_TEXT_X = 62
@@ -92,6 +92,12 @@ ROWS = [
         "label": "Bluetooth",
         "value": "Off",
         "icon": "bluetooth/bluetooth_off.png",
+        "focused": False,
+    },
+    {
+        "label": "Button Tester",
+        "value": "Test",
+        "icon": "hud/cursor_settings.png",
         "focused": False,
     },
     {

@@ -172,6 +172,7 @@ MENU_TOAST_OFFSET_Y = 16
 VOLUME_ITEM_KEY = "volume"
 WIFI_ITEM_KEY = "wifi"
 BLUETOOTH_ITEM_KEY = "bt"
+BUTTON_TESTER_ITEM_KEY = "button_tester"
 BRIGHTNESS_ITEM_KEY = "brightness"
 UPDATE_ITEM_KEY = "update"
 RESTART_ITEM_KEY = "restart"
@@ -251,6 +252,10 @@ MENU_LIST_MAX_ITEMS = 4
 TOUCH_SCROLL_DRAG_THRESHOLD = 10
 TOUCH_SCROLL_SETTLE_SEC = 0.35
 HOLDABLE_ADJUST_ITEM_KEYS = {VOLUME_ITEM_KEY, BRIGHTNESS_ITEM_KEY}
+BUTTON_TESTER_DETAIL_HEIGHT = max(280, min(326, APP_HEIGHT - MENU_ROW_HEIGHT - 70))
+BUTTON_TESTER_EXIT_HOLD_SEC = 1.5
+BUTTON_TESTER_SCAN_INTERVAL_SEC = 1.2
+BUTTON_TESTER_AXIS_THRESHOLD = 0.42
 DPAD_HOLD_INITIAL_DELAY_SEC = 0.28
 DPAD_HOLD_REPEAT_SEC = 0.055
 DPAD_HOLD_POLL_SEC = 0.01
@@ -293,6 +298,46 @@ SOUND_SCROLL_MIN_INTERVAL_SEC = 0.055
 SOUND_SLIDER_MIN_INTERVAL_SEC = 0.05
 SOUND_RESTART_DELAY_MS = 220
 SOUND_SHUTDOWN_DELAY_MS = 340
+
+
+def optional_ecode(name):
+    return getattr(evdev.ecodes, name, None)
+
+
+BUTTON_TESTER_KEY_MAP = {
+    code: control
+    for code, control in (
+        (optional_ecode("BTN_SOUTH"), "a"),
+        (optional_ecode("BTN_EAST"), "b"),
+        (optional_ecode("BTN_NORTH"), "y"),
+        (optional_ecode("BTN_WEST"), "x"),
+        (optional_ecode("BTN_START"), "start"),
+        (optional_ecode("BTN_MODE"), "start"),
+        (optional_ecode("BTN_SELECT"), "select"),
+        (optional_ecode("BTN_TL"), "l1"),
+        (optional_ecode("BTN_TR"), "r1"),
+        (optional_ecode("BTN_TL2"), "l2"),
+        (optional_ecode("BTN_TR2"), "r2"),
+        (optional_ecode("BTN_THUMBL"), "l3"),
+        (optional_ecode("BTN_THUMBR"), "r3"),
+        (optional_ecode("BTN_DPAD_UP"), "dpad_up"),
+        (optional_ecode("BTN_DPAD_DOWN"), "dpad_down"),
+        (optional_ecode("BTN_DPAD_LEFT"), "dpad_left"),
+        (optional_ecode("BTN_DPAD_RIGHT"), "dpad_right"),
+    )
+    if code is not None
+}
+BUTTON_TESTER_TRIGGER_AXES = {
+    code: control
+    for code, control in (
+        (optional_ecode("ABS_Z"), "l2"),
+        (optional_ecode("ABS_RZ"), "r2"),
+    )
+    if code is not None
+}
+BUTTON_TESTER_STICK_AXES = {
+    code for code in (optional_ecode("ABS_X"), optional_ecode("ABS_Y")) if code is not None
+}
 
 
 def run_text(cmd, env=None):
@@ -2988,6 +3033,330 @@ class WifiPasswordDialog:
             pass
 
 
+class ButtonTesterState:
+    def __init__(self, parent, on_change=None, on_exit=None):
+        self.parent = parent
+        self.on_change = on_change
+        self.on_exit = on_exit
+        self.lock = threading.RLock()
+        self.active = False
+        self.generation = 0
+        self.reader_paths = set()
+        self.devices = {}
+        self.device_names = {}
+        self.control_tokens = {}
+        self.start_hold_tokens = set()
+        self.notify_pending = False
+        self.exit_requested = False
+        self.last_source = ""
+        self.last_input_at = 0.0
+
+    def start(self):
+        with self.lock:
+            if self.active:
+                return
+            self.active = True
+            self.generation += 1
+            generation = self.generation
+            self.reader_paths = set()
+            self.devices = {}
+            self.device_names = {}
+            self.control_tokens = {}
+            self.start_hold_tokens = set()
+            self.notify_pending = False
+            self.exit_requested = False
+            self.last_source = ""
+            self.last_input_at = 0.0
+        threading.Thread(target=self.scan_loop, args=(generation,), daemon=True).start()
+        self.notify_change()
+
+    def stop(self):
+        with self.lock:
+            if not self.active and not self.devices:
+                return
+            self.active = False
+            self.generation += 1
+            devices = list(self.devices.values())
+            self.reader_paths = set()
+            self.devices = {}
+            self.device_names = {}
+            self.control_tokens = {}
+            self.start_hold_tokens = set()
+            self.notify_pending = False
+            self.exit_requested = False
+            self.last_source = ""
+            self.last_input_at = 0.0
+        for dev in devices:
+            try:
+                dev.close()
+            except Exception:
+                pass
+
+    def is_generation_active(self, generation):
+        with self.lock:
+            return self.active and self.generation == generation
+
+    def snapshot(self):
+        with self.lock:
+            return {
+                "active": self.active,
+                "controls": {
+                    control
+                    for control, tokens in self.control_tokens.items()
+                    if tokens
+                },
+                "device_count": len(self.device_names),
+                "last_source": self.last_source,
+                "last_input_at": self.last_input_at,
+            }
+
+    def notify_change(self):
+        if self.on_change is None:
+            return
+        with self.lock:
+            if not self.active or self.notify_pending:
+                return
+            self.notify_pending = True
+        try:
+            self.parent.after(0, self.deliver_change)
+        except tk.TclError:
+            with self.lock:
+                self.notify_pending = False
+
+    def deliver_change(self):
+        with self.lock:
+            self.notify_pending = False
+            if not self.active:
+                return
+        try:
+            self.on_change()
+        except Exception:
+            pass
+
+    def request_exit(self):
+        with self.lock:
+            if not self.active or self.exit_requested:
+                return
+            self.exit_requested = True
+        if self.on_exit is None:
+            return
+        try:
+            self.parent.after(0, self.on_exit)
+        except tk.TclError:
+            pass
+
+    def scan_loop(self, generation):
+        while self.is_generation_active(generation):
+            self.scan_once(generation)
+            deadline = time.monotonic() + BUTTON_TESTER_SCAN_INTERVAL_SEC
+            while time.monotonic() < deadline:
+                if not self.is_generation_active(generation):
+                    return
+                time.sleep(0.1)
+
+    def scan_once(self, generation):
+        changed = False
+        try:
+            paths = evdev.list_devices()
+        except Exception:
+            paths = []
+        for path in paths:
+            with self.lock:
+                already_known = path in self.reader_paths
+            if already_known:
+                continue
+            try:
+                dev = evdev.InputDevice(path)
+                caps = dev.capabilities()
+            except OSError:
+                continue
+            if not self.is_gamepad_device(dev, caps):
+                try:
+                    dev.close()
+                except Exception:
+                    pass
+                continue
+            with self.lock:
+                if not self.active or self.generation != generation:
+                    try:
+                        dev.close()
+                    except Exception:
+                        pass
+                    return
+                if path in self.reader_paths:
+                    try:
+                        dev.close()
+                    except Exception:
+                        pass
+                    continue
+                self.reader_paths.add(path)
+                self.devices[path] = dev
+                self.device_names[path] = dev.name
+                changed = True
+            threading.Thread(target=self.reader_loop, args=(dev, path, generation), daemon=True).start()
+        if changed:
+            self.notify_change()
+
+    def is_gamepad_device(self, dev, caps):
+        try:
+            name = dev.name.lower()
+        except Exception:
+            return False
+        if any(token in name for token in TOUCH_TOKENS):
+            return False
+        if evdev.ecodes.EV_KEY not in caps or evdev.ecodes.EV_ABS not in caps:
+            return False
+        if GPIO_GAMEPAD_NAME_TOKEN in name:
+            return True
+        key_codes = set(caps.get(evdev.ecodes.EV_KEY, []))
+        if key_codes & GAMEPAD_BUTTON_CODES:
+            return True
+        return any(token in name for token in GAMEPAD_NAME_TOKENS)
+
+    def reader_loop(self, dev, path, generation):
+        try:
+            for event in dev.read_loop():
+                if not self.is_generation_active(generation):
+                    break
+                self.process_event(path, dev.name, dev, event)
+        except OSError:
+            pass
+        finally:
+            self.cleanup_device(path, generation)
+            try:
+                dev.close()
+            except Exception:
+                pass
+
+    def cleanup_device(self, path, generation):
+        with self.lock:
+            if self.generation != generation:
+                return
+            self.reader_paths.discard(path)
+            self.devices.pop(path, None)
+            self.device_names.pop(path, None)
+            prefix = f"{path}:"
+            for control in list(self.control_tokens):
+                tokens = {
+                    token
+                    for token in self.control_tokens.get(control, set())
+                    if not token.startswith(prefix)
+                }
+                if tokens:
+                    self.control_tokens[control] = tokens
+                else:
+                    self.control_tokens.pop(control, None)
+            self.start_hold_tokens = {
+                token for token in self.start_hold_tokens if not token.startswith(prefix)
+            }
+        self.notify_change()
+
+    def process_event(self, path, name, dev, event):
+        if event.type == evdev.ecodes.EV_KEY:
+            self.process_key_event(path, name, event)
+            return
+        if event.type == evdev.ecodes.EV_ABS:
+            self.process_abs_event(path, name, dev, event)
+
+    def process_key_event(self, path, name, event):
+        control = BUTTON_TESTER_KEY_MAP.get(event.code)
+        if not control:
+            return
+        token = f"{path}:key:{event.code}"
+        pressed = event.value != 0
+        self.set_control_token(control, token, pressed, name)
+        if control == "start":
+            self.set_start_hold_token(token, pressed)
+
+    def process_abs_event(self, path, name, dev, event):
+        hat_x = optional_ecode("ABS_HAT0X")
+        hat_y = optional_ecode("ABS_HAT0Y")
+        if event.code == hat_x:
+            self.set_control_token("dpad_left", f"{path}:hat:x:-", event.value < 0, name)
+            self.set_control_token("dpad_right", f"{path}:hat:x:+", event.value > 0, name)
+            return
+        if event.code == hat_y:
+            self.set_control_token("dpad_up", f"{path}:hat:y:-", event.value < 0, name)
+            self.set_control_token("dpad_down", f"{path}:hat:y:+", event.value > 0, name)
+            return
+        trigger_control = BUTTON_TESTER_TRIGGER_AXES.get(event.code)
+        if trigger_control:
+            self.set_control_token(
+                trigger_control,
+                f"{path}:abs:{event.code}",
+                self.abs_value_active(dev, event.code, event.value, trigger=True),
+                name,
+            )
+            return
+        if event.code in BUTTON_TESTER_STICK_AXES:
+            if GPIO_GAMEPAD_NAME_TOKEN in str(name or "").lower():
+                return
+            self.set_control_token(
+                "left_stick",
+                f"{path}:stick:{event.code}",
+                self.abs_value_active(dev, event.code, event.value, trigger=False),
+                name,
+            )
+
+    def abs_value_active(self, dev, code, value, trigger=False):
+        try:
+            info = dev.absinfo(code)
+        except Exception:
+            info = None
+        if info is None or info.max <= info.min:
+            return abs(float(value)) >= (0.25 if trigger else BUTTON_TESTER_AXIS_THRESHOLD)
+        if trigger:
+            threshold = info.min + ((info.max - info.min) * 0.25)
+            return float(value) > threshold
+        center = (info.min + info.max) / 2.0
+        span = max(center - info.min, info.max - center, 1.0)
+        return abs(float(value) - center) / span >= BUTTON_TESTER_AXIS_THRESHOLD
+
+    def set_control_token(self, control, token, active, source):
+        changed = False
+        with self.lock:
+            if not self.active:
+                return
+            tokens = self.control_tokens.setdefault(control, set())
+            if active:
+                if token not in tokens:
+                    tokens.add(token)
+                    changed = True
+                self.last_source = str(source or "Gamepad")
+                self.last_input_at = time.monotonic()
+            else:
+                if token in tokens:
+                    tokens.discard(token)
+                    changed = True
+                if not tokens:
+                    self.control_tokens.pop(control, None)
+        if changed:
+            self.notify_change()
+
+    def set_start_hold_token(self, token, active):
+        if active:
+            with self.lock:
+                if token in self.start_hold_tokens:
+                    return
+                self.start_hold_tokens.add(token)
+                generation = self.generation
+            threading.Thread(target=self.start_hold_timer, args=(token, generation), daemon=True).start()
+            return
+        with self.lock:
+            self.start_hold_tokens.discard(token)
+
+    def start_hold_timer(self, token, generation):
+        time.sleep(BUTTON_TESTER_EXIT_HOLD_SEC)
+        with self.lock:
+            should_exit = (
+                self.active
+                and self.generation == generation
+                and token in self.start_hold_tokens
+            )
+        if should_exit:
+            self.request_exit()
+
+
 class QuickMenuOverlay:
     def __init__(
         self,
@@ -3037,6 +3406,11 @@ class QuickMenuOverlay:
         self.software_update_available = False
         self.software_remote_version = None
         self.software_update_notes = []
+        self.button_tester = ButtonTesterState(
+            self.window,
+            on_change=self.schedule_render,
+            on_exit=self.close_button_tester_from_hold,
+        )
         self.message_job = None
         self.animation_job = None
         self.volume_animation_job = None
@@ -3076,6 +3450,7 @@ class QuickMenuOverlay:
             {"key": VOLUME_ITEM_KEY, "label": "Volume"},
             {"key": WIFI_ITEM_KEY, "label": "WiFi"},
             {"key": BLUETOOTH_ITEM_KEY, "label": "Bluetooth"},
+            {"key": BUTTON_TESTER_ITEM_KEY, "label": "Button Tester"},
             {"key": BRIGHTNESS_ITEM_KEY, "label": "Brightness"},
             {"key": UPDATE_ITEM_KEY, "label": "Check for Updates"},
             {"key": RESTART_ITEM_KEY, "label": "Restart Kiosk"},
@@ -3569,6 +3944,8 @@ class QuickMenuOverlay:
             key = self.item_key_at_index(tapped_index)
             if key in LIST_ITEM_KEYS and key == self.expanded_key and event.y > MENU_ROW_HEIGHT:
                 return "break"
+            if key == BUTTON_TESTER_ITEM_KEY and key == self.expanded_key and event.y > MENU_ROW_HEIGHT:
+                return "break"
             self.on_row_click(tapped_index)
         return "break"
 
@@ -3703,6 +4080,8 @@ class QuickMenuOverlay:
         if self.expanded_key == UPDATE_ITEM_KEY and not self.software_update_in_progress:
             self.software_update_available = False
             self.software_remote_version = None
+        if self.expanded_key == BUTTON_TESTER_ITEM_KEY:
+            self.button_tester.stop()
         self.cancel_bluetooth_open_refresh()
         self.touch_slider_index = None
         self.touch_slider_key = None
@@ -3719,6 +4098,37 @@ class QuickMenuOverlay:
             or self.software_update_check_in_progress
             or self.software_update_in_progress
         )
+
+    def button_tester_active(self):
+        return self.expanded_key == BUTTON_TESTER_ITEM_KEY and self.button_tester.active
+
+    def open_button_tester(self):
+        self.clear_message()
+        self.adjusting_key = None
+        self.detail_selection_key = None
+        self.expanded_key = BUTTON_TESTER_ITEM_KEY
+        self.button_tester.start()
+        if self.sound_player is not None:
+            self.sound_player.play_dropdown_open()
+        self.render()
+        self.center_selected_row()
+
+    def close_button_tester_from_hold(self):
+        if not self.button_tester_active():
+            return
+        self.clear_message()
+        self.collapse_expanded(play_sound=True)
+        self.render()
+        self.center_selected_row()
+
+    def handle_button_tester_event(self, dev, event):
+        if not self.button_tester_active():
+            return False
+        try:
+            self.button_tester.process_event(dev.path, dev.name, dev, event)
+        except Exception:
+            pass
+        return True
 
     def show(self):
         if self.target_visible or self.system_action_pending():
@@ -3856,6 +4266,9 @@ class QuickMenuOverlay:
         if key == UPDATE_ITEM_KEY:
             return software_version_label(self.software_version)
 
+        if key == BUTTON_TESTER_ITEM_KEY:
+            return "Test"
+
         return ""
 
     def on_row_click(self, index):
@@ -3948,6 +4361,8 @@ class QuickMenuOverlay:
     def move_selection(self, delta):
         if not self.is_active() or self.system_action_pending():
             return
+        if self.button_tester_active():
+            return
         if self.wifi_password_prompt_open():
             return
         if self.adjusting_key in ADJUSTABLE_ITEM_KEYS:
@@ -3975,6 +4390,8 @@ class QuickMenuOverlay:
 
     def move_horizontal(self, delta):
         if not self.is_active() or self.system_action_pending():
+            return
+        if self.button_tester_active():
             return
         if self.wifi_password_prompt_open():
             return
@@ -4301,11 +4718,17 @@ class QuickMenuOverlay:
     def on_a(self):
         if not self.is_active() or self.system_action_pending():
             return
+        if self.button_tester_active():
+            return
         if self.wifi_password_prompt_open():
             self.submit_wifi_password(self.wifi_password_dialog.password())
             return
         item = self.items[self.selected_index]
         key = item["key"]
+
+        if key == BUTTON_TESTER_ITEM_KEY:
+            self.open_button_tester()
+            return
 
         if key in ADJUSTABLE_ITEM_KEYS:
             if self.adjusting_key == key:
@@ -4365,6 +4788,8 @@ class QuickMenuOverlay:
 
     def on_b(self):
         if not self.is_active() or self.system_action_pending():
+            return
+        if self.button_tester_active():
             return
         if self.wifi_password_prompt_open():
             self.close_wifi_password_dialog()
@@ -4602,6 +5027,8 @@ class QuickMenuOverlay:
             return "hud/brightness.png"
         if key == UPDATE_ITEM_KEY:
             return "hud/cursor_settings.png"
+        if key == BUTTON_TESTER_ITEM_KEY:
+            return "hud/cursor_settings.png"
         if key == RESTART_ITEM_KEY:
             return "hud/restart.png"
         if key == SHUTDOWN_ITEM_KEY:
@@ -4628,6 +5055,8 @@ class QuickMenuOverlay:
             return DETAIL_LIST_PANEL_BASE_HEIGHT + (row_count * DETAIL_LIST_PANEL_ROW_HEIGHT) + (
                 max(0, row_count - 1) * DETAIL_LIST_PANEL_ROW_GAP
             )
+        if key == BUTTON_TESTER_ITEM_KEY:
+            return BUTTON_TESTER_DETAIL_HEIGHT
         if key == UPDATE_ITEM_KEY:
             return DETAIL_CONFIRM_PANEL_BASE_HEIGHT + self.update_confirm_notes_height(MENU_WIDTH)
         if key in CONFIRM_ITEM_KEYS:
@@ -5189,12 +5618,175 @@ class QuickMenuOverlay:
             anchor="c",
         )
 
+    def button_tester_colors(self, active):
+        if active:
+            return MENU_HOT_PINK, MENU_FOCUS_TEXT, MENU_FOCUS_TEXT
+        return MENU_DETAIL_ACTIVE, MENU_DETAIL_BORDER, MENU_DETAIL_SUBTEXT
+
+    def draw_button_tester_round_control(self, card, control, label, cx, cy, radius, active_controls):
+        active = control in active_controls
+        fill, border, text = self.button_tester_colors(active)
+        card.create_oval(
+            cx - radius,
+            cy - radius,
+            cx + radius,
+            cy + radius,
+            fill=fill,
+            outline=border,
+            width=2,
+        )
+        card.create_text(cx, cy, text=label, fill=text, font=MENU_VALUE_FONT, anchor="c")
+
+    def draw_button_tester_rect_control(self, card, control, label, x1, y1, x2, y2, active_controls, radius=8):
+        active = control in active_controls
+        fill, border, text = self.button_tester_colors(active)
+        draw_bordered_rounded_rect(card, x1, y1, x2, y2, radius, fill, border, border_width=2)
+        card.create_text((x1 + x2) / 2, (y1 + y2) / 2, text=label, fill=text, font=SLIDER_LABEL_FONT, anchor="c")
+
+    def draw_button_tester_dpad(self, card, cx, cy, active_controls):
+        size = 25
+        gap = 3
+        self.draw_button_tester_rect_control(
+            card,
+            "dpad_up",
+            "^",
+            cx - (size / 2),
+            cy - size - gap,
+            cx + (size / 2),
+            cy - gap,
+            active_controls,
+            radius=7,
+        )
+        self.draw_button_tester_rect_control(
+            card,
+            "dpad_down",
+            "v",
+            cx - (size / 2),
+            cy + gap,
+            cx + (size / 2),
+            cy + size + gap,
+            active_controls,
+            radius=7,
+        )
+        self.draw_button_tester_rect_control(
+            card,
+            "dpad_left",
+            "<",
+            cx - size - gap,
+            cy - (size / 2),
+            cx - gap,
+            cy + (size / 2),
+            active_controls,
+            radius=7,
+        )
+        self.draw_button_tester_rect_control(
+            card,
+            "dpad_right",
+            ">",
+            cx + gap,
+            cy - (size / 2),
+            cx + size + gap,
+            cy + (size / 2),
+            active_controls,
+            radius=7,
+        )
+
+    def draw_button_tester_panel(self, card, width, card_height):
+        snapshot = self.button_tester.snapshot()
+        active_controls = snapshot.get("controls", set())
+        device_count = int(snapshot.get("device_count", 0) or 0)
+        source = str(snapshot.get("last_source") or "").strip()
+        status = f"{device_count} device{'s' if device_count != 1 else ''}"
+        source_text = f"Last input: {source}" if source else "Press any controller button"
+
+        x1, y1, x2, y2 = self.draw_detail_container(
+            card,
+            width,
+            card_height,
+            left_inset=DETAIL_LIST_PANEL_OUTER_PAD_X,
+            right_inset=DETAIL_LIST_PANEL_OUTER_PAD_X,
+        )
+        inner_left = x1 + DETAIL_LIST_PANEL_SIDE_PAD
+        inner_right = x2 - DETAIL_LIST_PANEL_SIDE_PAD
+        title_y = y1 + 18
+        sub_y = title_y + 20
+        card.create_text(inner_left, title_y, text="Button Tester", fill=MENU_DETAIL_TEXT, font=SLIDER_LABEL_FONT, anchor="w")
+        card.create_text(inner_right, title_y, text=status, fill=MENU_DETAIL_SUBTEXT, font=SLIDER_LABEL_FONT, anchor="e")
+        card.create_text(inner_left, sub_y, text=source_text, fill=MENU_DETAIL_SUBTEXT, font=(FONT_FAMILY, 9, "bold"), anchor="w")
+
+        diagram_top = sub_y + 24
+        diagram_bottom = y2 - 36
+        diagram_left = inner_left + 4
+        diagram_right = inner_right - 4
+        center_x = (diagram_left + diagram_right) / 2
+        center_y = (diagram_top + diagram_bottom) / 2 + 8
+
+        body_x1 = diagram_left + 34
+        body_x2 = diagram_right - 34
+        body_y1 = diagram_top + 34
+        body_y2 = diagram_bottom - 4
+        draw_bordered_rounded_rect(card, body_x1, body_y1, body_x2, body_y2, 30, "#1b121a", MENU_DETAIL_BORDER)
+        card.create_oval(
+            diagram_left + 8,
+            body_y1 + 28,
+            body_x1 + 72,
+            body_y2 + 16,
+            fill="#1b121a",
+            outline=MENU_DETAIL_BORDER,
+            width=2,
+        )
+        card.create_oval(
+            body_x2 - 72,
+            body_y1 + 28,
+            diagram_right - 8,
+            body_y2 + 16,
+            fill="#1b121a",
+            outline=MENU_DETAIL_BORDER,
+            width=2,
+        )
+
+        shoulder_y = diagram_top + 4
+        self.draw_button_tester_rect_control(card, "l2", "L2", body_x1 + 8, shoulder_y, body_x1 + 76, shoulder_y + 23, active_controls)
+        self.draw_button_tester_rect_control(card, "r2", "R2", body_x2 - 76, shoulder_y, body_x2 - 8, shoulder_y + 23, active_controls)
+        self.draw_button_tester_rect_control(card, "l1", "L1", body_x1 + 18, shoulder_y + 28, body_x1 + 86, shoulder_y + 51, active_controls)
+        self.draw_button_tester_rect_control(card, "r1", "R1", body_x2 - 86, shoulder_y + 28, body_x2 - 18, shoulder_y + 51, active_controls)
+
+        dpad_x = body_x1 + 78
+        face_x = body_x2 - 78
+        controls_y = center_y - 6
+        self.draw_button_tester_dpad(card, dpad_x, controls_y, active_controls)
+        self.draw_button_tester_round_control(card, "y", "Y", face_x, controls_y - 30, 15, active_controls)
+        self.draw_button_tester_round_control(card, "a", "A", face_x, controls_y + 30, 15, active_controls)
+        self.draw_button_tester_round_control(card, "x", "X", face_x - 30, controls_y, 15, active_controls)
+        self.draw_button_tester_round_control(card, "b", "B", face_x + 30, controls_y, 15, active_controls)
+
+        center_button_y = body_y1 + 78
+        self.draw_button_tester_rect_control(card, "select", "Select", center_x - 70, center_button_y, center_x - 14, center_button_y + 22, active_controls, radius=7)
+        self.draw_button_tester_rect_control(card, "start", "Start", center_x + 14, center_button_y, center_x + 70, center_button_y + 22, active_controls, radius=7)
+
+        stick_y = body_y2 - 45
+        self.draw_button_tester_round_control(card, "left_stick", "LS", center_x - 66, stick_y, 23, active_controls)
+        self.draw_button_tester_round_control(card, "l3", "L3", center_x - 66, stick_y, 10, active_controls)
+        self.draw_button_tester_round_control(card, "r3", "R3", center_x + 66, stick_y, 23, active_controls)
+
+        card.create_text(
+            inner_left,
+            y2 - 15,
+            text="Hold Start to exit",
+            fill=MENU_DETAIL_DIM,
+            font=(FONT_FAMILY, 9, "bold"),
+            anchor="w",
+        )
+
     def render_detail_panel(self, card, key, width, card_height):
         if key in ADJUSTABLE_ITEM_KEYS:
             self.draw_slider_panel(card, key, width, card_height)
             return
         if key in LIST_ITEM_KEYS:
             self.draw_list_panel(card, key, width, card_height)
+            return
+        if key == BUTTON_TESTER_ITEM_KEY:
+            self.draw_button_tester_panel(card, width, card_height)
             return
         if key in CONFIRM_ITEM_KEYS:
             self.draw_confirm_panel(card, key, width, card_height)
@@ -5630,6 +6222,8 @@ class Hud:
                 continue
             try:
                 for event in dev.read_loop():
+                    if self.quick_menu.handle_button_tester_event(dev, event):
+                        continue
                     if event.type == evdev.ecodes.EV_ABS:
                         if event.code == evdev.ecodes.ABS_HAT0Y:
                             if event.value == -1:
