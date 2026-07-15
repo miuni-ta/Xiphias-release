@@ -870,3 +870,8 @@ Use this file to keep a dated record of kiosk changes made on the Raspberry Pi. 
 - Summary: Capped Settings Bluetooth connect attempts at about 8 seconds by limiting the BlueZ command process to 7 seconds and keeping only a 1-second post-command state-settle poll before moving to the next fallback path.
 - Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-123320.md`.
 - Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires retrying a slow Bluetooth connect and confirming the UI falls through after about 8 seconds.
+
+## 2026-07-15 12:41:44 +0800
+- Summary: Added explicit Settings Bluetooth action rows for each visible device: `Connect`/`Pair` or `Disconnect`, `Forget <Device>`, plus a `Forget all saved devices` row that removes known BlueZ records before re-pairing.
+- Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-124009.md`.
+- Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`; confirmed `bluetoothctl` is not available in this Windows workspace, so live paired-device cleanup must be run on the Pi through the new Settings row. On-device confirmation still requires opening Settings > Bluetooth, using `Forget all saved devices`, and confirming the Pi's live paired-device list is cleared.

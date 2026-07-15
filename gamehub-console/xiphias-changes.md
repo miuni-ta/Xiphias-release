@@ -14,6 +14,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Kept Bluetooth failure messages visible in Settings for 5 seconds so raw BlueZ errors such as `org.bluez.Error.Failed` can be read during connection troubleshooting.
 - Added stale-pairing recovery for Bluetooth `br-connection-key-missing` failures by removing the broken local bond and trying one fresh pair/connect sequence.
 - Capped Settings Bluetooth connect attempts at about 8 seconds before falling through to the next fallback path.
+- Added explicit Settings Bluetooth action rows for Connect/Pair, Disconnect, Forget device, and Forget all saved devices.
 
 ## 2026-07-09
 

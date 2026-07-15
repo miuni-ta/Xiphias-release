@@ -1571,6 +1571,39 @@ def bluetooth_disconnect_device(address):
     return False, info, bluetooth_error_message(output, "Bluetooth disconnect failed")
 
 
+def bluetooth_forget_device(address):
+    if not address:
+        return False, {}, "Bluetooth device address missing"
+    output = run_bluetoothctl_script([f"disconnect {address}", f"remove {address}"], timeout=8)
+    info = bluetooth_device_info(address)
+    still_saved = bool(info.get("connected") or info.get("paired") or info.get("trusted"))
+    if not info.get("address") or not still_saved:
+        return True, info, ""
+    return False, info, bluetooth_error_message(output, "Bluetooth forget failed")
+
+
+def bluetooth_forget_all_devices(addresses=None):
+    target_addresses = {str(address).strip().upper() for address in (addresses or []) if str(address).strip()}
+    target_addresses.update(bluetooth_devices().keys())
+    target_addresses.update(bluetooth_devices("Paired").keys())
+    target_addresses.update(bluetooth_devices("Connected").keys())
+    if not target_addresses:
+        return True, 0, ""
+
+    forgotten_count = 0
+    first_error = ""
+    for address in sorted(target_addresses):
+        success, _info, error = bluetooth_forget_device(address)
+        if success:
+            forgotten_count += 1
+        elif not first_error:
+            first_error = error or f"Could not forget {address}"
+
+    if first_error:
+        return False, forgotten_count, first_error
+    return True, forgotten_count, ""
+
+
 def default_status_snapshot():
     return {
         "wifi_signal": 0,
@@ -4741,8 +4774,8 @@ class QuickMenuOverlay:
         )
         threading.Thread(target=self.run_bluetooth_power_action, args=(enable,), daemon=True).start()
 
-    def run_bluetooth_device_action(self, device):
-        if device.get("connected"):
+    def run_bluetooth_device_action(self, device, action=None):
+        if action == "disconnect" or (action is None and device.get("connected")):
             success, info, error = bluetooth_disconnect_device(device["address"])
             success_message = f"{device['name']} disconnected"
             refresh_scan_seconds = 0
@@ -4767,6 +4800,38 @@ class QuickMenuOverlay:
         except tk.TclError:
             pass
 
+    def run_bluetooth_forget_device_action(self, device):
+        success, _info, error = bluetooth_forget_device(device["address"])
+        snapshot = build_status_snapshot()
+        devices = (
+            nearby_bluetooth_devices(scan_seconds=0)
+            if snapshot.get("bluetooth_enabled", False)
+            else []
+        )
+        message = f"{device['name']} forgotten" if success else error
+        try:
+            self.window.after(0, lambda: self.finish_bluetooth_action(success, message, snapshot, devices=devices))
+        except tk.TclError:
+            pass
+
+    def run_bluetooth_forget_all_action(self):
+        addresses = [device.get("address") for device in self.bluetooth_devices if device.get("address")]
+        success, count, error = bluetooth_forget_all_devices(addresses)
+        snapshot = build_status_snapshot()
+        devices = (
+            nearby_bluetooth_devices(scan_seconds=0)
+            if snapshot.get("bluetooth_enabled", False)
+            else []
+        )
+        if success:
+            message = "No Bluetooth devices to forget" if count <= 0 else f"Forgot {count} Bluetooth device{'s' if count != 1 else ''}"
+        else:
+            message = error
+        try:
+            self.window.after(0, lambda: self.finish_bluetooth_action(success, message, snapshot, devices=devices))
+        except tk.TclError:
+            pass
+
     def activate_bluetooth_detail_entry(self):
         if self.bluetooth_action_in_progress or self.system_action_pending():
             self.set_message("Bluetooth action already running", MENU_DESTRUCTIVE)
@@ -4784,13 +4849,26 @@ class QuickMenuOverlay:
             self.request_list_refresh(BLUETOOTH_ITEM_KEY, force=True)
             self.render()
             return
-        if kind != "device":
+        if kind == "forget_all":
+            self.set_bluetooth_action_state(True)
+            self.set_message("Forgetting Bluetooth devices...", MENU_TOAST_TEXT, timeout_ms=0)
+            threading.Thread(target=self.run_bluetooth_forget_all_action, daemon=True).start()
+            return
+        if kind not in ("device", "device_action"):
             return
         device = dict(entry["device"])
-        verb = "Disconnecting" if device.get("connected") else ("Connecting" if device.get("paired") else "Pairing")
+        action = entry.get("action")
+        if action == "forget":
+            self.set_bluetooth_action_state(True)
+            self.set_message(f"Forgetting {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
+            threading.Thread(target=self.run_bluetooth_forget_device_action, args=(device,), daemon=True).start()
+            return
+        if action not in ("connect", "disconnect"):
+            action = "disconnect" if device.get("connected") else "connect"
+        verb = "Disconnecting" if action == "disconnect" else ("Connecting" if device.get("paired") else "Pairing")
         self.set_bluetooth_action_state(True)
         self.set_message(f"{verb} {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
-        threading.Thread(target=self.run_bluetooth_device_action, args=(device,), daemon=True).start()
+        threading.Thread(target=self.run_bluetooth_device_action, args=(device, action), daemon=True).start()
 
     def on_a(self):
         if not self.is_active() or self.system_action_pending():
@@ -5305,6 +5383,18 @@ class QuickMenuOverlay:
             )
             return entries
 
+        forgettable_count = sum(1 for device in self.bluetooth_devices if device.get("address"))
+        if forgettable_count:
+            entries.append(
+                {
+                    "kind": "forget_all",
+                    "title": "Forget all saved devices",
+                    "meta": f"Remove {forgettable_count} Bluetooth device record{'s' if forgettable_count != 1 else ''}",
+                    "accent": False,
+                    "destructive": True,
+                }
+            )
+
         for device in self.bluetooth_devices[:BLUETOOTH_DEVICE_LIST_MAX_ITEMS]:
             if device.get("connected"):
                 status = "Connected"
@@ -5314,12 +5404,30 @@ class QuickMenuOverlay:
                 status = "Known"
             else:
                 status = "Found"
+            connect_action = "disconnect" if device.get("connected") else "connect"
+            connect_title = (
+                f"Disconnect {device['name']}"
+                if connect_action == "disconnect"
+                else f"{'Connect' if device.get('paired') or device.get('known') else 'Pair'} {device['name']}"
+            )
             entries.append(
                 {
-                    "kind": "device",
-                    "title": device["name"],
+                    "kind": "device_action",
+                    "action": connect_action,
+                    "title": connect_title,
                     "meta": f"{device.get('type', 'Device')} | {status}",
-                    "accent": device.get("connected") or device.get("paired"),
+                    "accent": device.get("connected"),
+                    "device": device,
+                }
+            )
+            entries.append(
+                {
+                    "kind": "device_action",
+                    "action": "forget",
+                    "title": f"Forget {device['name']}",
+                    "meta": "Remove saved pairing, trust, and connection state",
+                    "accent": False,
+                    "destructive": True,
                     "device": device,
                 }
             )
@@ -5531,6 +5639,8 @@ class QuickMenuOverlay:
             selected = key in LIST_ITEM_KEYS and self.detail_selection_key == key and index == self.detail_selection_index
             entry_fill = MENU_DETAIL_ACTIVE if entry.get("accent") else MENU_BG
             entry_border = MENU_HOT_PINK if selected else MENU_DETAIL_BORDER
+            if entry.get("destructive") and not selected:
+                entry_border = MENU_DESTRUCTIVE
             if selected:
                 entry_fill = MENU_CONFIRM_BG
             draw_bordered_rounded_rect(
@@ -5547,7 +5657,7 @@ class QuickMenuOverlay:
                 entry_x1 + DETAIL_LIST_PANEL_ITEM_TEXT_PAD_X,
                 entry_y1 + DETAIL_LIST_PANEL_ITEM_TITLE_OFFSET_Y,
                 text=entry["title"],
-                fill=MENU_FOCUS_TEXT if selected else MENU_DETAIL_TEXT,
+                fill=MENU_FOCUS_TEXT if selected else (MENU_DESTRUCTIVE if entry.get("destructive") else MENU_DETAIL_TEXT),
                 font=SLIDER_LABEL_FONT,
                 anchor="w",
             )
@@ -5555,7 +5665,7 @@ class QuickMenuOverlay:
                 entry_x1 + DETAIL_LIST_PANEL_ITEM_TEXT_PAD_X,
                 entry_y1 + DETAIL_LIST_PANEL_ITEM_META_OFFSET_Y,
                 text=entry["meta"],
-                fill=MENU_FOCUS_TEXT if selected else MENU_DETAIL_SUBTEXT,
+                fill=MENU_FOCUS_TEXT if selected else (MENU_DESTRUCTIVE if entry.get("destructive") else MENU_DETAIL_SUBTEXT),
                 font=(FONT_FAMILY, 9, "bold"),
                 anchor="w",
             )
