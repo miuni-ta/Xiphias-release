@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import time
 
 
@@ -22,6 +23,10 @@ QUICK_MENU_ACTIVE_PATH = Path("/tmp/gamehub-quick-menu-active")
 HUD_TEXT_INPUT_ACTIVE_PATH = Path("/tmp/gamehub-hud-text-input-active")
 BROWSER_GAME_MODE_ACTIVE_PATH = Path("/tmp/gamehub-browser-game-mode-active")
 BROWSER_GAME_MODE_STALE_SEC = 2.0
+DEFAULT_RELEASE_STAGE = "Alpha"
+VERSION_NUMBER_RE = re.compile(
+    r"^(?:(?P<stage>[A-Za-z][A-Za-z0-9_-]*)\s+)?v?(?P<number>\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$"
+)
 
 
 def load_config():
@@ -53,6 +58,21 @@ def read_workspace_version(default="Unknown"):
     except OSError:
         return default
     return version or default
+
+
+def format_software_version_label(version_text=None):
+    version = str(version_text if version_text is not None else read_workspace_version()).strip()
+    if not version:
+        return "Unknown"
+    if version.lower() == "unknown":
+        return "Unknown"
+
+    match = VERSION_NUMBER_RE.match(version)
+    if not match:
+        return version
+
+    stage = match.group("stage") or DEFAULT_RELEASE_STAGE
+    return f"{stage} v{match.group('number')}"
 
 
 def touchscreen_present():

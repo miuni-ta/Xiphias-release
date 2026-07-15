@@ -193,6 +193,22 @@ The OTA script preserves the local `console.env`, keeps logs on the device, crea
 
 This public repository is the deploy mirror used by production devices. The maintenance/source repository remains separate.
 
+## Versioning
+
+The Settings `Check for Updates` row displays the root `version.txt` value. Alpha builds use the format `Alpha vMAJOR.MINOR.PATCH`, starting at `Alpha v1.0.0`.
+
+For normal development commits, enable the tracked hook once in a local checkout:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+After that, commits with staged changes automatically bump the patch number in `version.txt` unless `version.txt` is already staged manually. To bump by hand, run:
+
+```bash
+python3 scripts/bump_version.py --part patch --git-add
+```
+
 ## Safe Next Step
 
 Use this as `v1`. Once the flow is stable on real hardware, the next step is to turn it into a custom image instead of a normal installed system.

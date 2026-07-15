@@ -8,6 +8,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 ## 2026-07-15
 
 - Added a browser game-mode gate so hosted HTML games such as MakeCode Arcade receive USB and GPIO controller input through Chromium's Gamepad API without Xiphias also translating those presses into mouse clicks, scrolling, OSK toggles, home actions, or the `Start` Settings shortcut.
+- Changed the Settings `Check for Updates` version display to the alpha label format `Alpha v1.0.0` and added a tracked version-bump hook/script so future commits can increment the patch number automatically.
 
 ## 2026-07-09
 

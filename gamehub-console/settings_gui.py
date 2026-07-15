@@ -20,7 +20,7 @@ except Exception:
     Image = None
     ImageDraw = None
 
-from common import hud_bar_heights, load_config, read_workspace_version
+from common import format_software_version_label, hud_bar_heights, load_config, read_workspace_version
 
 
 CONFIG = load_config()
@@ -67,12 +67,7 @@ GRADIENT_STEPS = 40
 
 
 def software_version_value():
-    version = str(read_workspace_version()).strip()
-    if not version or version.lower() == "unknown":
-        return "Unknown"
-    if version.lower().startswith("v"):
-        return version
-    return f"v{version}"
+    return format_software_version_label(read_workspace_version())
 
 
 ROWS = [

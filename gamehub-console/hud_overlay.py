@@ -34,6 +34,7 @@ from common import (
     WORKSPACE_ROOT,
     TOUCH_TOKENS,
     browser_game_mode_active,
+    format_software_version_label,
     hud_bar_heights,
     load_config,
     read_workspace_version,
@@ -790,14 +791,7 @@ def grayscale_color(value):
 
 
 def software_version_label(version_text=None):
-    version = str(version_text if version_text is not None else read_workspace_version()).strip()
-    if not version:
-        return "Unknown"
-    if version.lower() == "unknown":
-        return "Unknown"
-    if version.lower().startswith("v"):
-        return version
-    return f"v{version}"
+    return format_software_version_label(version_text)
 
 
 def split_nmcli_wifi_line(line):
