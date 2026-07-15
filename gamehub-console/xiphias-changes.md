@@ -5,6 +5,10 @@ Update this file whenever behavior, deployment, image-building, OTA, or kiosk UX
 
 Detailed historical kiosk notes before this file existed still live in `timestamp-console.md`.
 
+## 2026-07-15
+
+- Added a browser game-mode gate so hosted HTML games such as MakeCode Arcade receive USB and GPIO controller input through Chromium's Gamepad API without Xiphias also translating those presses into mouse clicks, scrolling, OSK toggles, home actions, or the `Start` Settings shortcut.
+
 ## 2026-07-09
 
 - Added a Settings `Button Tester` row after `Bluetooth`, opening a canvas-drawn controller diagram that listens to USB and GPIO gamepads, highlights live button input, suppresses normal Settings actions while testing, and exits on held `Start`.

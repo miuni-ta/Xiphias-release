@@ -33,6 +33,7 @@ from common import (
     REPO_ROOT,
     WORKSPACE_ROOT,
     TOUCH_TOKENS,
+    browser_game_mode_active,
     hud_bar_heights,
     load_config,
     read_workspace_version,
@@ -6223,6 +6224,15 @@ class Hud:
             try:
                 for event in dev.read_loop():
                     if self.quick_menu.handle_button_tester_event(dev, event):
+                        continue
+                    game_mode_active = browser_game_mode_active()
+                    if game_mode_active and not self.quick_menu.is_active():
+                        if (
+                            event.type == evdev.ecodes.EV_KEY
+                            and event.value == 1
+                            and event.code == evdev.ecodes.BTN_MODE
+                        ):
+                            self.safe_after(0, self.handle_quick_menu_button)
                         continue
                     if event.type == evdev.ecodes.EV_ABS:
                         if event.code == evdev.ecodes.ABS_HAT0Y:

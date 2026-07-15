@@ -24,6 +24,7 @@ from common import (
     hud_text_input_active,
     load_config,
     quick_menu_active,
+    set_browser_game_mode_active as set_shared_browser_game_mode_active,
     touchscreen_present,
 )
 
@@ -60,6 +61,12 @@ KB_POLL_INTERVAL = 0.03
 VIEWPORT_FIX_POLL_INTERVAL = 1.0
 KB_CHECK_DELAY = 0.02
 TOUCH_CHECK_DELAY = 0.02
+GAME_MODE_POLL_INTERVAL = 0.35
+GAME_MODE_URL_TOKENS = (
+    "arcade.makecode.com/---run",
+    "trg-arcade.userpxt.io/---simulator",
+    "gdevelop",
+)
 ONBOARD_THEME_DIR = os.path.expanduser("~/.local/share/onboard/themes")
 ONBOARD_THEME_SOURCE = os.path.join(BASE_DIR, "gamepad_dark.theme")
 ONBOARD_COLORS_SOURCE = os.path.join(BASE_DIR, "gamepad_dark.colors")
@@ -113,6 +120,8 @@ KEYBOARD_ANIMATION_STEP = 0.012
 KEYBOARD_WINDOW_LOCK = threading.RLock()
 KEYBOARD_TARGET_VISIBLE = False
 KEYBOARD_VISIBILITY_GENERATION = 0
+GAME_MODE_LOCK = threading.Lock()
+GAME_MODE_ACTIVE = False
 SOUND_SAMPLE_RATE = 22050
 SOUND_MASTER_GAIN = 0.28
 SOUND_ENVELOPE_FLOOR = 0.0008
@@ -387,6 +396,31 @@ KEEP_INPUT_VISIBLE_JS = (
     "el.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});"
     "}"
     "return true;"
+    "})()"
+)
+GAME_MODE_ACTIVE_JS = (
+    "(function(){"
+    "var href=String(location.href||'').toLowerCase();"
+    "if(href.indexOf('arcade.makecode.com/---run')!==-1)return true;"
+    "if(href.indexOf('trg-arcade.userpxt.io/---simulator')!==-1)return true;"
+    "if(href.indexOf('gdevelop')!==-1)return true;"
+    "var frames=Array.prototype.slice.call(document.querySelectorAll('iframe'));"
+    "for(var i=0;i<frames.length;i++){"
+    "var frame=frames[i];"
+    "var id=String(frame.id||'');"
+    "if(id==='site-frame')continue;"
+    "var src=String(frame.src||'').toLowerCase();"
+    "if(!src)continue;"
+    "if(src.indexOf('handheld.knfstudios.com')!==-1)continue;"
+    "var rect=frame.getBoundingClientRect();"
+    "if(rect.width<120||rect.height<120)continue;"
+    "if(src.indexOf('arcade.makecode.com/---run')!==-1)return true;"
+    "if(src.indexOf('trg-arcade.userpxt.io/---simulator')!==-1)return true;"
+    "if(src.indexOf('gdevelop')!==-1)return true;"
+    "var allow=String(frame.getAttribute('allow')||'').toLowerCase();"
+    "if(allow.indexOf('gamepad')!==-1||allow.indexOf('fullscreen')!==-1)return true;"
+    "}"
+    "return false;"
     "})()"
 )
 INSTALL_INPUT_BLUR_HOOK_JS = (
@@ -819,6 +853,45 @@ def evaluate_js_on_targets(expression):
     return results
 
 
+def target_url_is_game_mode(url):
+    lowered = str(url or "").lower()
+    return any(token in lowered for token in GAME_MODE_URL_TOKENS)
+
+
+def detect_game_mode_active():
+    try:
+        targets = get_debug_targets()
+    except Exception:
+        return False
+
+    for target in targets:
+        if target_url_is_game_mode(target.get("url", "")):
+            return True
+
+    for target in targets:
+        if evaluate_target_js(target, GAME_MODE_ACTIVE_JS) is True:
+            return True
+    return False
+
+
+def set_game_mode_active(active):
+    global GAME_MODE_ACTIVE
+    with GAME_MODE_LOCK:
+        GAME_MODE_ACTIVE = bool(active)
+    set_shared_browser_game_mode_active(active)
+
+
+def browser_game_mode_active():
+    with GAME_MODE_LOCK:
+        return GAME_MODE_ACTIVE
+
+
+def game_mode_loop():
+    while True:
+        set_game_mode_active(detect_game_mode_active())
+        time.sleep(GAME_MODE_POLL_INTERVAL)
+
+
 def keyboard_process_running():
     return is_running("onboard")
 
@@ -1156,7 +1229,7 @@ def schedule_keyboard_window_restore(visibility_generation):
 
 
 def controller_input_blocked():
-    return quick_menu_active()
+    return quick_menu_active() or browser_game_mode_active()
 
 
 def keyboard_suppressed():
@@ -1540,7 +1613,7 @@ class Controller:
             touch_active = False
             try:
                 for event in dev.read_loop():
-                    if controller_input_blocked():
+                    if quick_menu_active():
                         touch_active = False
                         continue
                     if event.type == evdev.ecodes.EV_KEY and event.code == evdev.ecodes.BTN_TOUCH:
@@ -1606,6 +1679,7 @@ class Controller:
         threading.Thread(target=prewarm_keyboard_process, daemon=True).start()
         threading.Thread(target=keyboard_focus_loop, daemon=True).start()
         threading.Thread(target=viewport_fix_loop, daemon=True).start()
+        threading.Thread(target=game_mode_loop, daemon=True).start()
         threading.Thread(target=self.cursor_loop, daemon=True).start()
         threading.Thread(target=self.touch_loop, daemon=True).start()
 

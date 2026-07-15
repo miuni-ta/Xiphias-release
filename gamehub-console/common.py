@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import time
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -19,6 +20,8 @@ DEFAULT_STATUS_BAR_HEIGHT = 24
 DEFAULT_BOTTOM_BAR_HEIGHT = 24
 QUICK_MENU_ACTIVE_PATH = Path("/tmp/gamehub-quick-menu-active")
 HUD_TEXT_INPUT_ACTIVE_PATH = Path("/tmp/gamehub-hud-text-input-active")
+BROWSER_GAME_MODE_ACTIVE_PATH = Path("/tmp/gamehub-browser-game-mode-active")
+BROWSER_GAME_MODE_STALE_SEC = 2.0
 
 
 def load_config():
@@ -131,6 +134,29 @@ def quick_menu_active():
 
 def hud_text_input_active():
     return HUD_TEXT_INPUT_ACTIVE_PATH.exists()
+
+
+def browser_game_mode_active(max_age=BROWSER_GAME_MODE_STALE_SEC):
+    try:
+        if not BROWSER_GAME_MODE_ACTIVE_PATH.exists():
+            return False
+        if max_age is not None:
+            age = time.time() - BROWSER_GAME_MODE_ACTIVE_PATH.stat().st_mtime
+            if age > max_age:
+                return False
+        return True
+    except OSError:
+        return False
+
+
+def set_browser_game_mode_active(active):
+    try:
+        if active:
+            BROWSER_GAME_MODE_ACTIVE_PATH.write_text("1")
+        elif BROWSER_GAME_MODE_ACTIVE_PATH.exists():
+            BROWSER_GAME_MODE_ACTIVE_PATH.unlink()
+    except OSError:
+        pass
 
 
 def set_hud_text_input_active(active):

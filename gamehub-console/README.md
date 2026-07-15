@@ -115,6 +115,8 @@ For that reader to work on a Raspberry Pi 5, make sure `I2C` is enabled in `rasp
 - `LB` / `RB`: scroll up / down
 - D-pad up / down: scroll
 
+When a hosted HTML game is active, Xiphias switches into game mode. USB and GPIO gamepad events are left for Chromium's Gamepad API, so Xiphias stops translating those same buttons into mouse clicks, scrolling, OSK toggles, home actions, or the `Start` Settings shortcut while gameplay is active. Touchscreen input remains available, and a controller `Mode` button can still open Settings when present.
+
 ## Settings Button Tester
 
 The Settings overlay includes `Button Tester` directly after `Bluetooth`. Open it with `A` to show a large controller diagram that listens to every detected gamepad-like evdev device, including USB controllers and the virtual `Xiphias GPIO Gamepad`. Pressed controls highlight live on the diagram. Short presses of `A`, `B`, and `Start` are test inputs while the tester is open; hold `Start` for about 1.5 seconds to close the tester and return to normal Settings navigation.
