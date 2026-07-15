@@ -15,6 +15,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Added stale-pairing recovery for Bluetooth `br-connection-key-missing` failures by removing the broken local bond and trying one fresh pair/connect sequence.
 - Capped Settings Bluetooth connect attempts at about 8 seconds before falling through to the next fallback path.
 - Added explicit Settings Bluetooth action rows for Connect/Pair, Disconnect, Forget device, and Forget all saved devices.
+- Reworked Settings Wi-Fi and Bluetooth details so network/device actions open from D-pad right in a nested action panel instead of appearing directly in the main list.
 
 ## 2026-07-09
 

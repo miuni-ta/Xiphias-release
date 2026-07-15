@@ -85,7 +85,7 @@ For the first secure Wi-Fi connection and the first Bluetooth pairing, use one o
 
 Already-paired Bluetooth devices should reconnect from Settings through a direct `bluetoothctl connect` path first. Xiphias caps each connect attempt at about 8 seconds before moving to the next fallback path. It only runs the slower discovery/session-setup fallback if that direct reconnect does not take, so returning speakers, controllers, keyboards, and mice do not pay the full nearby-device scan delay every time.
 
-The Settings Bluetooth panel shows explicit device actions. Use `Connect`, `Pair`, or `Disconnect` rows for the selected device action, use `Forget <Device>` to remove that device's saved BlueZ pairing/trust record, or use `Forget all saved devices` to clear the currently known Bluetooth devices before pairing again.
+The Settings Wi-Fi and Bluetooth panels use a two-step action model. Highlight a Wi-Fi network or Bluetooth device, press D-pad right to open its action panel, then choose `Connect`, `Pair`, `Disconnect`, or `Forget`. Press D-pad left or `B` to return to the device/network list. Bluetooth actions also include `Forget all saved devices` from the device action panel.
 
 Bluetooth failure messages shown in Settings come from BlueZ through `bluetoothctl`, so low-level names such as `org.bluez.Error.Failed` can appear when the device rejects a connection, times out, is not ready, or needs to be put back into pairing/connect mode. `br-connection-key-missing` means the Pi has a stale pairing record without the BR/EDR link key needed to reconnect; Xiphias now removes that stale local record and tries one fresh pair/connect attempt. Xiphias keeps Bluetooth error messages visible for 5 seconds so they can be read before retrying.
 

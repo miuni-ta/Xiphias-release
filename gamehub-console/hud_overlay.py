@@ -958,6 +958,48 @@ def activate_saved_wifi_profile(profile, device_name="", password=None):
     return run_nmcli_output(cmd, privileged=True, timeout=WIFI_ACTION_TIMEOUT_SEC + 4)
 
 
+def wifi_disconnect_network(network=None):
+    network = network or {}
+    ssid = str(network.get("ssid", "")).strip()
+    device_name = current_wifi_device()
+    if not device_name:
+        return False, "WiFi device unavailable"
+    success, output = run_nmcli_output(["device", "disconnect", device_name], privileged=True, timeout=8)
+    _signal, state, connected_ssid = wait_for_wifi_connection("", timeout_sec=1.5)
+    if state != "connected" or (ssid and connected_ssid != ssid):
+        return True, ""
+    return False, command_error_message(output, f"Failed to disconnect {ssid or 'WiFi'}")
+
+
+def wifi_forget_network(network):
+    ssid = str(network.get("ssid", "")).strip()
+    if not ssid:
+        return False, 0, "WiFi name unavailable"
+
+    if network.get("active"):
+        wifi_disconnect_network(network)
+
+    profiles = saved_wifi_profiles_for_ssid(ssid)
+    if not profiles:
+        return True, 0, ""
+
+    deleted_count = 0
+    first_error = ""
+    for profile in profiles:
+        profile_ref = str(profile.get("uuid") or profile.get("id") or "").strip()
+        if not profile_ref:
+            continue
+        success, output = run_nmcli_output(["connection", "delete", profile_ref], privileged=True, timeout=8)
+        if success:
+            deleted_count += 1
+        elif not first_error:
+            first_error = command_error_message(output, f"Failed to forget {ssid}")
+
+    if first_error:
+        return False, deleted_count, first_error
+    return True, deleted_count, ""
+
+
 def nearby_wifi_networks(rescan=True):
     text = nmcli_text(
         [
@@ -3497,6 +3539,9 @@ class QuickMenuOverlay:
         self.adjusting_key = None
         self.detail_selection_key = None
         self.detail_selection_index = 0
+        self.detail_action_key = None
+        self.detail_action_source_index = 0
+        self.detail_action_target = None
         self.selected_index = 0
         self.volume_value = 50
         self.volume_target_value = 50
@@ -4077,11 +4122,74 @@ class QuickMenuOverlay:
 
     def detail_entries(self, key=None):
         resolved_key = self.detail_selection_key if key is None else key
+        if self.detail_action_panel_active(resolved_key):
+            if resolved_key == WIFI_ITEM_KEY:
+                return self.wifi_action_entries()
+            if resolved_key == BLUETOOTH_ITEM_KEY:
+                return self.bluetooth_action_entries()
         if resolved_key == WIFI_ITEM_KEY:
             return self.wifi_detail_entries()
         if resolved_key == BLUETOOTH_ITEM_KEY:
             return self.bluetooth_detail_entries()
         return []
+
+    def detail_action_panel_active(self, key=None):
+        resolved_key = self.detail_action_key if key is None else key
+        return (
+            resolved_key in LIST_ITEM_KEYS
+            and self.expanded_key == resolved_key
+            and self.detail_selection_key == resolved_key
+            and self.detail_action_key == resolved_key
+            and self.detail_action_target is not None
+        )
+
+    def clear_detail_action_panel(self, restore_selection=True):
+        if not self.detail_action_panel_active():
+            self.detail_action_key = None
+            self.detail_action_target = None
+            self.detail_action_source_index = 0
+            return False
+        source_index = self.detail_action_source_index
+        self.detail_action_key = None
+        self.detail_action_target = None
+        self.detail_action_source_index = 0
+        if restore_selection:
+            entries = self.detail_entries(self.detail_selection_key)
+            if entries:
+                self.detail_selection_index = max(0, min(source_index, len(entries) - 1))
+        return True
+
+    def detail_entry_supports_action_panel(self, entry):
+        if not entry:
+            return False
+        kind = entry.get("kind")
+        return kind in {"network", "device"}
+
+    def open_detail_action_panel(self):
+        if self.detail_selection_key not in LIST_ITEM_KEYS or self.expanded_key != self.detail_selection_key:
+            return False
+        if self.detail_action_panel_active():
+            return False
+        entries = self.detail_entries(self.detail_selection_key)
+        if not entries:
+            return False
+        self.detail_selection_index = max(0, min(self.detail_selection_index, len(entries) - 1))
+        entry = entries[self.detail_selection_index]
+        if not self.detail_entry_supports_action_panel(entry):
+            return False
+        self.detail_action_key = self.detail_selection_key
+        self.detail_action_source_index = self.detail_selection_index
+        if self.detail_selection_key == WIFI_ITEM_KEY:
+            self.detail_action_target = {"kind": "network", "network": dict(entry.get("network") or {})}
+        else:
+            self.detail_action_target = {"kind": "device", "device": dict(entry.get("device") or {})}
+        self.detail_selection_index = 0
+        self.clear_message()
+        if self.sound_player is not None:
+            self.sound_player.play_dropdown_open()
+        self.render()
+        self.center_selected_row()
+        return True
 
     def clamp_detail_selection(self):
         if self.detail_selection_key not in LIST_ITEM_KEYS or self.expanded_key != self.detail_selection_key:
@@ -4120,6 +4228,27 @@ class QuickMenuOverlay:
         if self.bluetooth_action_in_progress:
             return "Working..."
         return "Select"
+
+    def detail_panel_title(self, key):
+        if self.detail_action_panel_active(key):
+            if key == WIFI_ITEM_KEY:
+                return "WiFi Actions"
+            return "Bluetooth Actions"
+        return "Nearby WiFi" if key == WIFI_ITEM_KEY else "Bluetooth Devices"
+
+    def detail_header_hint(self, key):
+        action_in_progress = self.wifi_action_in_progress if key == WIFI_ITEM_KEY else self.bluetooth_action_in_progress
+        if action_in_progress:
+            return None, "Working..."
+        if self.detail_action_panel_active(key):
+            return "a.png", "Select"
+        if self.detail_selection_key == key and self.expanded_key == key:
+            entries = self.detail_entries(key)
+            if entries:
+                selected_index = max(0, min(self.detail_selection_index, len(entries) - 1))
+                if self.detail_entry_supports_action_panel(entries[selected_index]):
+                    return "dpad.png", "right for actions"
+        return "a.png", "Select"
 
     def short_wifi_label(self, name):
         label = str(name or "").strip()
@@ -4196,6 +4325,9 @@ class QuickMenuOverlay:
         self.expanded_key = None
         self.detail_selection_key = None
         self.detail_selection_index = 0
+        self.detail_action_key = None
+        self.detail_action_target = None
+        self.detail_action_source_index = 0
         if play_sound and was_expanded and self.sound_player is not None:
             self.sound_player.play_dropdown_close()
 
@@ -4504,6 +4636,22 @@ class QuickMenuOverlay:
             return
         if self.adjusting_key in ADJUSTABLE_ITEM_KEYS:
             self.adjust_active_slider(delta)
+            return
+        if self.detail_action_panel_active():
+            if delta < 0:
+                self.clear_detail_action_panel(restore_selection=True)
+                if self.sound_player is not None:
+                    self.sound_player.play_dropdown_close()
+                self.render()
+                self.center_selected_row()
+            return
+        if (
+            delta > 0
+            and self.detail_selection_key in LIST_ITEM_KEYS
+            and self.expanded_key == self.detail_selection_key
+            and self.open_detail_action_panel()
+        ):
+            return
 
     def adjust_active_slider(self, direction):
         if self.adjusting_key == VOLUME_ITEM_KEY:
@@ -4600,6 +4748,7 @@ class QuickMenuOverlay:
         self.push_snapshot(snapshot)
         if networks is not None:
             self.wifi_networks = networks
+        self.clear_detail_action_panel(restore_selection=True)
         self.clamp_detail_selection()
         if message:
             self.set_message(message, MENU_TOAST_TEXT if success else MENU_DESTRUCTIVE)
@@ -4646,8 +4795,18 @@ class QuickMenuOverlay:
         )
         threading.Thread(target=self.run_wifi_power_action, args=(enable,), daemon=True).start()
 
-    def run_wifi_network_action(self, network, password=None):
-        if network.get("active"):
+    def run_wifi_network_action(self, network, password=None, action="connect"):
+        if action == "disconnect":
+            success, error = wifi_disconnect_network(network)
+            success_message = f"{network['ssid']} disconnected"
+        elif action == "forget":
+            success, count, error = wifi_forget_network(network)
+            success_message = (
+                f"{network['ssid']} had no saved profile"
+                if count <= 0
+                else f"{network['ssid']} forgotten"
+            )
+        elif network.get("active"):
             success = True
             error = ""
             success_message = f"{network['ssid']} already connected"
@@ -4656,7 +4815,7 @@ class QuickMenuOverlay:
             success_message = ""
         snapshot = build_status_snapshot()
         networks = nearby_wifi_networks(rescan=False) if snapshot.get("wifi_state") != "disabled" else []
-        if success and not network.get("active") and self.on_wifi_connected is not None:
+        if success and action == "connect" and not network.get("active") and self.on_wifi_connected is not None:
             try:
                 self.on_wifi_connected(snapshot.get("wifi_name") or network.get("ssid") or "WiFi")
             except Exception:
@@ -4667,10 +4826,16 @@ class QuickMenuOverlay:
         except tk.TclError:
             pass
 
-    def start_wifi_network_action(self, network, password=None):
+    def start_wifi_network_action(self, network, password=None, action="connect"):
         self.set_wifi_action_state(True)
-        self.set_message(f"Connecting {network['ssid']}...", MENU_TOAST_TEXT, timeout_ms=0)
-        threading.Thread(target=self.run_wifi_network_action, args=(dict(network), password), daemon=True).start()
+        if action == "disconnect":
+            message = f"Disconnecting {network['ssid']}..."
+        elif action == "forget":
+            message = f"Forgetting {network['ssid']}..."
+        else:
+            message = f"Connecting {network['ssid']}..."
+        self.set_message(message, MENU_TOAST_TEXT, timeout_ms=0)
+        threading.Thread(target=self.run_wifi_network_action, args=(dict(network), password, action), daemon=True).start()
 
     def activate_wifi_detail_entry(self):
         if self.wifi_action_in_progress or self.system_action_pending():
@@ -4680,6 +4845,18 @@ class QuickMenuOverlay:
         if not entry:
             return
         kind = entry.get("kind")
+        if self.detail_action_panel_active(WIFI_ITEM_KEY):
+            if kind != "wifi_action":
+                return
+            network = dict(entry.get("network") or {})
+            action = entry.get("action")
+            if action == "connect" and wifi_security_requires_password(network):
+                self.clear_message()
+                self.open_wifi_password_dialog(network)
+                return
+            if action in {"connect", "disconnect", "forget"}:
+                self.start_wifi_network_action(network, action=action)
+            return
         if kind == "power":
             self.toggle_wifi_power()
             return
@@ -4691,15 +4868,7 @@ class QuickMenuOverlay:
             return
         if kind != "network":
             return
-        network = dict(entry["network"])
-        if network.get("active"):
-            self.set_message(f"{network['ssid']} already connected", MENU_TOAST_TEXT)
-            return
-        if wifi_security_requires_password(network):
-            self.clear_message()
-            self.open_wifi_password_dialog(network)
-            return
-        self.start_wifi_network_action(network)
+        self.set_message("Press right for WiFi actions", MENU_TOAST_TEXT)
 
     def open_bluetooth_detail(self):
         self.clear_message()
@@ -4726,6 +4895,7 @@ class QuickMenuOverlay:
         self.push_snapshot(snapshot)
         if devices is not None:
             self.bluetooth_devices = devices
+        self.clear_detail_action_panel(restore_selection=True)
         self.clamp_detail_selection()
         if message:
             if success:
@@ -4840,6 +5010,28 @@ class QuickMenuOverlay:
         if not entry:
             return
         kind = entry.get("kind")
+        if self.detail_action_panel_active(BLUETOOTH_ITEM_KEY):
+            if kind == "forget_all":
+                self.set_bluetooth_action_state(True)
+                self.set_message("Forgetting Bluetooth devices...", MENU_TOAST_TEXT, timeout_ms=0)
+                threading.Thread(target=self.run_bluetooth_forget_all_action, daemon=True).start()
+                return
+            if kind != "device_action":
+                return
+            device = dict(entry.get("device") or {})
+            action = entry.get("action")
+            if action == "forget":
+                self.set_bluetooth_action_state(True)
+                self.set_message(f"Forgetting {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
+                threading.Thread(target=self.run_bluetooth_forget_device_action, args=(device,), daemon=True).start()
+                return
+            if action not in ("connect", "disconnect"):
+                action = "disconnect" if device.get("connected") else "connect"
+            verb = "Disconnecting" if action == "disconnect" else ("Connecting" if device.get("paired") else "Pairing")
+            self.set_bluetooth_action_state(True)
+            self.set_message(f"{verb} {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
+            threading.Thread(target=self.run_bluetooth_device_action, args=(device, action), daemon=True).start()
+            return
         if kind == "power":
             self.toggle_bluetooth_power()
             return
@@ -4849,26 +5041,9 @@ class QuickMenuOverlay:
             self.request_list_refresh(BLUETOOTH_ITEM_KEY, force=True)
             self.render()
             return
-        if kind == "forget_all":
-            self.set_bluetooth_action_state(True)
-            self.set_message("Forgetting Bluetooth devices...", MENU_TOAST_TEXT, timeout_ms=0)
-            threading.Thread(target=self.run_bluetooth_forget_all_action, daemon=True).start()
+        if kind != "device":
             return
-        if kind not in ("device", "device_action"):
-            return
-        device = dict(entry["device"])
-        action = entry.get("action")
-        if action == "forget":
-            self.set_bluetooth_action_state(True)
-            self.set_message(f"Forgetting {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
-            threading.Thread(target=self.run_bluetooth_forget_device_action, args=(device,), daemon=True).start()
-            return
-        if action not in ("connect", "disconnect"):
-            action = "disconnect" if device.get("connected") else "connect"
-        verb = "Disconnecting" if action == "disconnect" else ("Connecting" if device.get("paired") else "Pairing")
-        self.set_bluetooth_action_state(True)
-        self.set_message(f"{verb} {device['name']}...", MENU_TOAST_TEXT, timeout_ms=0)
-        threading.Thread(target=self.run_bluetooth_device_action, args=(device, action), daemon=True).start()
+        self.set_message("Press right for Bluetooth actions", MENU_TOAST_TEXT)
 
     def on_a(self):
         if not self.is_active() or self.system_action_pending():
@@ -4948,6 +5123,14 @@ class QuickMenuOverlay:
             return
         if self.wifi_password_prompt_open():
             self.close_wifi_password_dialog()
+            return
+        if self.detail_action_panel_active():
+            self.clear_message()
+            self.clear_detail_action_panel(restore_selection=True)
+            if self.sound_player is not None:
+                self.sound_player.play_dropdown_close()
+            self.render()
+            self.center_selected_row()
             return
         if self.expanded_key is not None or self.adjusting_key is not None:
             self.clear_message()
@@ -5201,12 +5384,12 @@ class QuickMenuOverlay:
         if key in ADJUSTABLE_ITEM_KEYS:
             return 98
         if key == WIFI_ITEM_KEY:
-            row_count = max(1, len(self.wifi_detail_entries()))
+            row_count = max(1, len(self.detail_entries(key)))
             return DETAIL_LIST_PANEL_BASE_HEIGHT + (row_count * DETAIL_LIST_PANEL_ROW_HEIGHT) + (
                 max(0, row_count - 1) * DETAIL_LIST_PANEL_ROW_GAP
             )
         if key == BLUETOOTH_ITEM_KEY:
-            row_count = max(1, len(self.bluetooth_detail_entries()))
+            row_count = max(1, len(self.detail_entries(key)))
             return DETAIL_LIST_PANEL_BASE_HEIGHT + (row_count * DETAIL_LIST_PANEL_ROW_HEIGHT) + (
                 max(0, row_count - 1) * DETAIL_LIST_PANEL_ROW_GAP
             )
@@ -5332,6 +5515,48 @@ class QuickMenuOverlay:
             )
         return entries
 
+    def wifi_action_entries(self):
+        target = self.detail_action_target or {}
+        network = dict(target.get("network") or {})
+        if not network:
+            return []
+        ssid = network.get("ssid", "WiFi")
+        entries = []
+        if network.get("active"):
+            entries.append(
+                {
+                    "kind": "wifi_action",
+                    "action": "disconnect",
+                    "title": f"Disconnect {ssid}",
+                    "meta": "Leave this WiFi network",
+                    "accent": True,
+                    "network": network,
+                }
+            )
+        else:
+            entries.append(
+                {
+                    "kind": "wifi_action",
+                    "action": "connect",
+                    "title": f"Connect {ssid}",
+                    "meta": "Join this WiFi network",
+                    "accent": False,
+                    "network": network,
+                }
+            )
+        entries.append(
+            {
+                "kind": "wifi_action",
+                "action": "forget",
+                "title": f"Forget {ssid}",
+                "meta": "Remove saved NetworkManager profile",
+                "accent": False,
+                "destructive": True,
+                "network": network,
+            }
+        )
+        return entries
+
     def bluetooth_detail_entries(self):
         enabled = self.snapshot.get("bluetooth_enabled", False)
         connected_devices = self.snapshot.get("bluetooth_connected_devices", [])
@@ -5383,18 +5608,6 @@ class QuickMenuOverlay:
             )
             return entries
 
-        forgettable_count = sum(1 for device in self.bluetooth_devices if device.get("address"))
-        if forgettable_count:
-            entries.append(
-                {
-                    "kind": "forget_all",
-                    "title": "Forget all saved devices",
-                    "meta": f"Remove {forgettable_count} Bluetooth device record{'s' if forgettable_count != 1 else ''}",
-                    "accent": False,
-                    "destructive": True,
-                }
-            )
-
         for device in self.bluetooth_devices[:BLUETOOTH_DEVICE_LIST_MAX_ITEMS]:
             if device.get("connected"):
                 status = "Connected"
@@ -5404,33 +5617,55 @@ class QuickMenuOverlay:
                 status = "Known"
             else:
                 status = "Found"
-            connect_action = "disconnect" if device.get("connected") else "connect"
-            connect_title = (
-                f"Disconnect {device['name']}"
-                if connect_action == "disconnect"
-                else f"{'Connect' if device.get('paired') or device.get('known') else 'Pair'} {device['name']}"
-            )
             entries.append(
                 {
-                    "kind": "device_action",
-                    "action": connect_action,
-                    "title": connect_title,
+                    "kind": "device",
+                    "title": device["name"],
                     "meta": f"{device.get('type', 'Device')} | {status}",
-                    "accent": device.get("connected"),
+                    "accent": device.get("connected") or device.get("paired"),
                     "device": device,
                 }
             )
-            entries.append(
-                {
-                    "kind": "device_action",
-                    "action": "forget",
-                    "title": f"Forget {device['name']}",
-                    "meta": "Remove saved pairing, trust, and connection state",
-                    "accent": False,
-                    "destructive": True,
-                    "device": device,
-                }
-            )
+        return entries
+
+    def bluetooth_action_entries(self):
+        target = self.detail_action_target or {}
+        device = dict(target.get("device") or {})
+        if not device:
+            return []
+        device_name = device.get("name", "Bluetooth device")
+        connect_action = "disconnect" if device.get("connected") else "connect"
+        connect_title = (
+            f"Disconnect {device_name}"
+            if connect_action == "disconnect"
+            else f"{'Connect' if device.get('paired') or device.get('known') else 'Pair'} {device_name}"
+        )
+        entries = [
+            {
+                "kind": "device_action",
+                "action": connect_action,
+                "title": connect_title,
+                "meta": f"{device.get('type', 'Device')} action",
+                "accent": device.get("connected"),
+                "device": device,
+            },
+            {
+                "kind": "device_action",
+                "action": "forget",
+                "title": f"Forget {device_name}",
+                "meta": "Remove saved pairing, trust, and connection state",
+                "accent": False,
+                "destructive": True,
+                "device": device,
+            },
+            {
+                "kind": "forget_all",
+                "title": "Forget all saved devices",
+                "meta": "Remove all visible Bluetooth records",
+                "accent": False,
+                "destructive": True,
+            },
+        ]
         return entries
 
     def draw_slider(self, canvas, x1, x2, y_pos, value):
@@ -5580,55 +5815,34 @@ class QuickMenuOverlay:
         inner_right = x2 - DETAIL_LIST_PANEL_SIDE_PAD
         header_left = inner_left + DETAIL_LIST_PANEL_ITEM_INSET_X
         header_right = inner_right - DETAIL_LIST_PANEL_ITEM_INSET_X
-        title = "Nearby WiFi" if key == WIFI_ITEM_KEY else "Bluetooth Devices"
+        title = self.detail_panel_title(key)
         entries = self.wifi_detail_entries() if key == WIFI_ITEM_KEY else self.bluetooth_detail_entries()
+        if self.detail_action_panel_active(key):
+            entries = self.detail_entries(key)
 
         title_y = y1 + DETAIL_LIST_PANEL_TITLE_OFFSET_Y
         card.create_text(header_left, title_y, text=title, fill=MENU_DETAIL_TEXT, font=SLIDER_LABEL_FONT, anchor="w")
-        if key == WIFI_ITEM_KEY:
-            header_text = self.wifi_detail_header_text()
-            if self.wifi_action_in_progress:
-                card.create_text(
-                    header_right,
-                    title_y,
-                    text=header_text,
-                    fill=MENU_DETAIL_SUBTEXT,
-                    font=SLIDER_LABEL_FONT,
-                    anchor="e",
-                )
-            else:
-                self.draw_prompt_hint(
-                    card,
-                    header_right,
-                    title_y,
-                    "a.png",
-                    header_text,
-                    MENU_DETAIL_SUBTEXT,
-                    SLIDER_LABEL_FONT,
-                    anchor="e",
-                )
+        header_icon, header_text = self.detail_header_hint(key)
+        if header_icon is None:
+            card.create_text(
+                header_right,
+                title_y,
+                text=header_text,
+                fill=MENU_DETAIL_SUBTEXT,
+                font=SLIDER_LABEL_FONT,
+                anchor="e",
+            )
         else:
-            header_text = self.bluetooth_detail_header_text()
-            if self.bluetooth_action_in_progress:
-                card.create_text(
-                    header_right,
-                    title_y,
-                    text=header_text,
-                    fill=MENU_DETAIL_SUBTEXT,
-                    font=SLIDER_LABEL_FONT,
-                    anchor="e",
-                )
-            else:
-                self.draw_prompt_hint(
-                    card,
-                    header_right,
-                    title_y,
-                    "a.png",
-                    header_text,
-                    MENU_DETAIL_SUBTEXT,
-                    SLIDER_LABEL_FONT,
-                    anchor="e",
-                )
+            self.draw_prompt_hint(
+                card,
+                header_right,
+                title_y,
+                header_icon,
+                header_text,
+                MENU_DETAIL_SUBTEXT,
+                SLIDER_LABEL_FONT,
+                anchor="e",
+            )
 
         row_top = title_y + DETAIL_LIST_PANEL_ROWS_TOP_GAP
         for index, entry in enumerate(entries):
