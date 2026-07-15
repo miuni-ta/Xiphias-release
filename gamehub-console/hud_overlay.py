@@ -265,6 +265,8 @@ BLUETOOTH_SCAN_SECONDS = 6
 BLUETOOTH_PRE_CONNECT_SCAN_SECONDS = 3
 BLUETOOTH_POST_ACTION_SCAN_SECONDS = 1
 BLUETOOTH_ACTION_TIMEOUT_SEC = 24
+BLUETOOTH_PAIRED_ACTION_TIMEOUT_SEC = 10
+BLUETOOTH_PAIRED_FAST_CONNECT_WAIT_SEC = 4.0
 BLUETOOTH_CONNECTION_WAIT_SEC = 8.0
 BLUETOOTH_PAIRING_WAIT_SEC = 12.0
 BLUETOOTH_DEVICE_LIST_MAX_ITEMS = 10
@@ -500,8 +502,8 @@ def bluetooth_session_setup_commands():
     ]
 
 
-def bluetooth_connect_commands(address, already_paired=False):
-    commands = [*bluetooth_session_setup_commands()]
+def bluetooth_connect_commands(address, already_paired=False, include_setup=True):
+    commands = [*bluetooth_session_setup_commands()] if include_setup else []
     if not already_paired:
         commands.extend([f"pair {address}", "yes", "yes", "yes"])
     commands.extend([f"trust {address}", f"connect {address}", "yes", "yes"])
@@ -1448,6 +1450,40 @@ def bluetooth_connect_device(address, already_paired=False):
         if not success:
             return False, bluetooth_device_info(address), error
 
+    initial_info = bluetooth_device_info(address)
+    if initial_info.get("connected"):
+        return True, initial_info, ""
+
+    paired_device = bool(already_paired or initial_info.get("paired"))
+    if paired_device:
+        output = run_bluetoothctl_script(
+            bluetooth_connect_commands(address, already_paired=True, include_setup=False),
+            timeout=BLUETOOTH_PAIRED_ACTION_TIMEOUT_SEC,
+        )
+        info = wait_for_bluetooth_device_state(
+            address,
+            connected=True,
+            timeout_sec=BLUETOOTH_PAIRED_FAST_CONNECT_WAIT_SEC,
+        )
+        if info.get("connected"):
+            return True, info, ""
+
+        bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
+        retry_output = run_bluetoothctl_script(
+            bluetooth_connect_commands(address, already_paired=True, include_setup=False),
+            timeout=max(12, BLUETOOTH_ACTION_TIMEOUT_SEC // 2),
+        )
+        info = wait_for_bluetooth_device_state(
+            address,
+            connected=True,
+            timeout_sec=BLUETOOTH_CONNECTION_WAIT_SEC,
+        )
+        if info.get("connected"):
+            return True, info, ""
+
+        combined_output = "\n".join(part for part in (output, retry_output) if part)
+        return False, info, bluetooth_error_message(combined_output, "Bluetooth connection failed")
+
     bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
     output = run_bluetoothctl_script(
         bluetooth_connect_commands(address, already_paired=already_paired),
@@ -1464,10 +1500,10 @@ def bluetooth_connect_device(address, already_paired=False):
         return True, info, ""
 
     retry_output = ""
-    if already_paired or info.get("paired"):
+    if info.get("paired"):
         bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
         retry_output = run_bluetoothctl_script(
-            bluetooth_connect_commands(address, already_paired=True),
+            bluetooth_connect_commands(address, already_paired=True, include_setup=False),
             timeout=max(12, BLUETOOTH_ACTION_TIMEOUT_SEC // 2),
         )
         info = wait_for_bluetooth_device_state(
@@ -4667,7 +4703,7 @@ class QuickMenuOverlay:
         else:
             success, info, error = bluetooth_connect_device(device["address"], already_paired=device.get("paired", False))
             success_message = ""
-            refresh_scan_seconds = BLUETOOTH_POST_ACTION_SCAN_SECONDS
+            refresh_scan_seconds = 0 if device.get("paired") else BLUETOOTH_POST_ACTION_SCAN_SECONDS
         snapshot = build_status_snapshot()
         devices = (
             nearby_bluetooth_devices(scan_seconds=refresh_scan_seconds)

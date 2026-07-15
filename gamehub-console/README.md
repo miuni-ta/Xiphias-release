@@ -83,6 +83,8 @@ For the first secure Wi-Fi connection and the first Bluetooth pairing, use one o
 - Best after deployment: SSH into the Pi and use `nmcli` and `bluetoothctl`.
 - Controller-only fallback: use the gamepad cursor plus the on-screen keyboard inside the hosted UI when available, or SSH in for advanced Wi-Fi and Bluetooth setup.
 
+Already-paired Bluetooth devices should reconnect from Settings through a direct `bluetoothctl connect` path first. Xiphias only runs a short discovery scan as a fallback if that direct reconnect does not take, so returning speakers, controllers, keyboards, and mice do not pay the full nearby-device scan delay every time.
+
 ## Battery Support
 
 If your battery board exposes a normal battery device to `upower`, the HUD will show battery automatically and switch to the charging icon only while `upower` reports `charging`.
