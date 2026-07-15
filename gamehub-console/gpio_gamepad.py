@@ -17,10 +17,18 @@ TRIGGER_MAX = 255
 DEFAULT_BOUNCE_MS = 20
 DEFAULT_ACTIVE_LOW = True
 GPIOZERO_PIN_FACTORY = "lgpio"
-USB_STYLE_VENDOR_ID = 0x1209
-USB_STYLE_PRODUCT_ID = 0x5848
-USB_STYLE_VERSION = 0x0100
+# Chromium's Gamepad API only applies the standard Xbox button layout to
+# recognized controller identities. Keep the Xiphias name for local detection,
+# but use an Xbox 360-compatible VID/PID so browser games do not receive raw
+# Linux button indexes such as L2=8/back or Select=10/reset.
+USB_STYLE_VENDOR_ID = 0x045E
+USB_STYLE_PRODUCT_ID = 0x028E
+USB_STYLE_VERSION = 0x0114
 USB_STYLE_BUSTYPE = getattr(ecodes, "BUS_USB", 0x03)
+BTN_DPAD_UP = getattr(ecodes, "BTN_DPAD_UP", 0x220)
+BTN_DPAD_DOWN = getattr(ecodes, "BTN_DPAD_DOWN", 0x221)
+BTN_DPAD_LEFT = getattr(ecodes, "BTN_DPAD_LEFT", 0x222)
+BTN_DPAD_RIGHT = getattr(ecodes, "BTN_DPAD_RIGHT", 0x223)
 
 
 @dataclass(frozen=True)
@@ -35,10 +43,10 @@ class GpioControl:
 
 
 CONTROLS = (
-    GpioControl("dpad_up", "GPIO_GAMEPAD_DPAD_UP", 19, "axis", axis="y", direction=-1),
-    GpioControl("dpad_down", "GPIO_GAMEPAD_DPAD_DOWN", 5, "axis", axis="y", direction=1),
-    GpioControl("dpad_left", "GPIO_GAMEPAD_DPAD_LEFT", 13, "axis", axis="x", direction=-1),
-    GpioControl("dpad_right", "GPIO_GAMEPAD_DPAD_RIGHT", 6, "axis", axis="x", direction=1),
+    GpioControl("dpad_up", "GPIO_GAMEPAD_DPAD_UP", 19, "axis", code=BTN_DPAD_UP, axis="y", direction=-1),
+    GpioControl("dpad_down", "GPIO_GAMEPAD_DPAD_DOWN", 5, "axis", code=BTN_DPAD_DOWN, axis="y", direction=1),
+    GpioControl("dpad_left", "GPIO_GAMEPAD_DPAD_LEFT", 13, "axis", code=BTN_DPAD_LEFT, axis="x", direction=-1),
+    GpioControl("dpad_right", "GPIO_GAMEPAD_DPAD_RIGHT", 6, "axis", code=BTN_DPAD_RIGHT, axis="x", direction=1),
     GpioControl("start", "GPIO_GAMEPAD_START", 26, "button", code=ecodes.BTN_START),
     GpioControl("select", "GPIO_GAMEPAD_SELECT", 10, "button", code=ecodes.BTN_SELECT),
     GpioControl("a", "GPIO_GAMEPAD_A", 20, "button", code=ecodes.BTN_SOUTH),
@@ -122,10 +130,17 @@ def build_uinput():
             ecodes.BTN_WEST,
             ecodes.BTN_START,
             ecodes.BTN_SELECT,
+            ecodes.BTN_MODE,
             ecodes.BTN_TL,
             ecodes.BTN_TR,
             ecodes.BTN_TL2,
             ecodes.BTN_TR2,
+            ecodes.BTN_THUMBL,
+            ecodes.BTN_THUMBR,
+            BTN_DPAD_UP,
+            BTN_DPAD_DOWN,
+            BTN_DPAD_LEFT,
+            BTN_DPAD_RIGHT,
         ],
         ecodes.EV_ABS: [
             (ecodes.ABS_X, abs_axis),
@@ -181,6 +196,8 @@ class GpioGamepad:
                 if control.kind == "button":
                     self.ui.write(ecodes.EV_KEY, control.code, 0)
                     self.write_trigger_axis_unlocked(control, False)
+                elif control.kind == "axis" and control.code:
+                    self.ui.write(ecodes.EV_KEY, control.code, 0)
             self.axis_state = {"x": 0, "y": 0}
             self.write_axis_unlocked("x", 0)
             self.write_axis_unlocked("y", 0)
@@ -206,6 +223,8 @@ class GpioGamepad:
                 self.ui.write(ecodes.EV_KEY, control.code, 1 if pressed else 0)
                 self.write_trigger_axis_unlocked(control, pressed)
             elif control.kind == "axis":
+                if control.code:
+                    self.ui.write(ecodes.EV_KEY, control.code, 1 if pressed else 0)
                 self.update_axis_unlocked(control.axis)
             self.ui.syn()
 

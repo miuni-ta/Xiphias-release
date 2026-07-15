@@ -125,6 +125,8 @@ The Settings overlay includes `Button Tester` directly after `Bluetooth`. Open i
 
 Xiphias includes native support for the 14-button GPIO wiring from Leandro Linares' handheld guide. Instead of installing Adafruit `retrogame`, the installer enables `xiphias-gpio-gamepad.service`, which runs `gpio_gamepad.py` as root and creates a USB-style evdev gamepad named `Xiphias GPIO Gamepad`. A bundled udev rule tags that device as a joystick/gamepad so the OS, Chromium, and Xiphias treat it like a generic USB controller instead of a keyboard. This keeps the buttons inside the normal Xiphias controller path and avoids leaking `W/A/S/D` keyboard presses into Chromium.
 
+The virtual controller uses an Xbox 360-compatible browser identity while keeping the `Xiphias GPIO Gamepad` device name. That lets Chromium expose the standard Gamepad API layout expected by hosted HTML games: `A/B/X/Y` at buttons `0-3`, `Back/Select` at `8`, `Start` at `9`, and D-pad buttons at `12-15`. The GPIO D-pad also emits explicit D-pad button events alongside the existing axes/HAT events so MakeCode Arcade and the portal do not fall back to raw Linux button indexes.
+
 The installer loads both `uinput` and `joydev`. `uinput` lets Xiphias create the virtual controller, while `joydev` exposes the companion `/dev/input/js*` joystick node that Chromium and browser gamepad code commonly expect.
 
 Default BCM GPIO mapping:
