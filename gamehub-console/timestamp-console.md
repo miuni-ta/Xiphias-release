@@ -860,3 +860,13 @@ Use this file to keep a dated record of kiosk changes made on the Raspberry Pi. 
 - Summary: Kept Bluetooth action failure messages visible in the Settings overlay for 5 seconds so raw BlueZ errors such as `org.bluez.Error.Failed` are readable when a connection attempt is rejected or times out.
 - Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-122156.md`.
 - Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires forcing a Bluetooth connect failure and confirming the error stays visible for about 5 seconds.
+
+## 2026-07-15 12:30:05 +0800
+- Summary: Added stale-pairing recovery for Bluetooth `br-connection-key-missing` failures: paired-device reconnect now detects the missing BR/EDR link-key error, removes the stale local BlueZ device record, tries one fresh pair/connect sequence, and otherwise shows a clearer pairing-mode message.
+- Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-122844.md`.
+- Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires retrying the device that reported `br-connection-key-missing`.
+
+## 2026-07-15 12:33:20 +0800
+- Summary: Capped Settings Bluetooth connect attempts at about 8 seconds by limiting the BlueZ command process to 7 seconds and keeping only a 1-second post-command state-settle poll before moving to the next fallback path.
+- Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-123320.md`.
+- Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires retrying a slow Bluetooth connect and confirming the UI falls through after about 8 seconds.

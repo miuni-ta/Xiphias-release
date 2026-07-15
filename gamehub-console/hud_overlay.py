@@ -264,15 +264,22 @@ DPAD_HOLD_POLL_SEC = 0.01
 BLUETOOTH_SCAN_SECONDS = 6
 BLUETOOTH_PRE_CONNECT_SCAN_SECONDS = 3
 BLUETOOTH_POST_ACTION_SCAN_SECONDS = 1
-BLUETOOTH_ACTION_TIMEOUT_SEC = 24
-BLUETOOTH_PAIRED_ACTION_TIMEOUT_SEC = 10
-BLUETOOTH_PAIRED_FAST_CONNECT_WAIT_SEC = 4.0
-BLUETOOTH_CONNECTION_WAIT_SEC = 8.0
-BLUETOOTH_PAIRING_WAIT_SEC = 12.0
+BLUETOOTH_CONNECT_ATTEMPT_TIMEOUT_SEC = 8
+BLUETOOTH_CONNECT_SETTLE_WAIT_SEC = 1.0
+BLUETOOTH_CONNECT_COMMAND_TIMEOUT_SEC = max(4, BLUETOOTH_CONNECT_ATTEMPT_TIMEOUT_SEC - int(BLUETOOTH_CONNECT_SETTLE_WAIT_SEC))
+BLUETOOTH_ACTION_TIMEOUT_SEC = BLUETOOTH_CONNECT_COMMAND_TIMEOUT_SEC
+BLUETOOTH_PAIRED_ACTION_TIMEOUT_SEC = BLUETOOTH_CONNECT_COMMAND_TIMEOUT_SEC
+BLUETOOTH_PAIRED_FAST_CONNECT_WAIT_SEC = 1.0
+BLUETOOTH_CONNECTION_WAIT_SEC = BLUETOOTH_CONNECT_SETTLE_WAIT_SEC
+BLUETOOTH_PAIRING_WAIT_SEC = BLUETOOTH_CONNECT_SETTLE_WAIT_SEC
 BLUETOOTH_DEVICE_LIST_MAX_ITEMS = 10
 BLUETOOTH_AGENT_CAPABILITY = "KeyboardDisplay"
 BLUETOOTH_OPEN_SCAN_DELAY_MS = 220
 BLUETOOTH_FAILURE_MESSAGE_DURATION_MS = 5000
+BLUETOOTH_STALE_PAIRING_ERROR_TOKENS = (
+    "br-connection-key-missing",
+    "connection-key-missing",
+)
 WIFI_ACTION_TIMEOUT_SEC = 24
 WIFI_CONNECTION_WAIT_SEC = 6.0
 WIFI_NETWORK_LIST_MAX_ITEMS = 4
@@ -405,6 +412,7 @@ def run_bluetoothctl_script(commands, timeout=8):
     if not script_lines:
         return ""
     command_timeout = max(4, int(math.ceil(float(timeout))))
+    bluetoothctl_timeout = max(1, command_timeout - 1)
     outputs = []
     for command in script_lines:
         if command.lower() == "yes":
@@ -412,11 +420,11 @@ def run_bluetoothctl_script(commands, timeout=8):
         args = shlex.split(command)
         if not args:
             continue
-        bluetoothctl_args = ["--timeout", str(command_timeout)]
+        bluetoothctl_args = ["--timeout", str(bluetoothctl_timeout)]
         if args[0] == "pair":
             bluetoothctl_args.extend(["--agent", BLUETOOTH_AGENT_CAPABILITY])
         bluetoothctl_args.extend(args)
-        output = bluetoothctl_text(bluetoothctl_args, timeout=command_timeout + 2)
+        output = bluetoothctl_text(bluetoothctl_args, timeout=command_timeout)
         if output:
             outputs.append(output)
     return strip_ansi("\n".join(outputs)).strip()
@@ -511,6 +519,23 @@ def bluetooth_connect_commands(address, already_paired=False, include_setup=True
     return commands
 
 
+def bluetooth_recover_stale_pairing(address, previous_output=""):
+    remove_output = run_bluetoothctl_script([f"remove {address}"], timeout=8)
+    bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
+    pair_output = run_bluetoothctl_script(
+        bluetooth_connect_commands(address, already_paired=False, include_setup=True),
+        timeout=BLUETOOTH_ACTION_TIMEOUT_SEC,
+    )
+    info = wait_for_bluetooth_device_state(
+        address,
+        connected=True,
+        paired=True,
+        timeout_sec=BLUETOOTH_PAIRING_WAIT_SEC,
+    )
+    output = "\n".join(part for part in (previous_output, remove_output, pair_output) if part)
+    return info, output
+
+
 def bluetooth_type_label(icon_name, device_name):
     icon_map = {
         "audio-card": "Speaker",
@@ -574,7 +599,14 @@ def bluetooth_display_name(name, icon_name="", address=""):
     return f"Unknown [{type_label}]"
 
 
+def bluetooth_output_has_stale_pairing_error(output):
+    normalized = re.sub(r"[\s_.]+", "-", strip_ansi(output or "").lower())
+    return any(token in normalized for token in BLUETOOTH_STALE_PAIRING_ERROR_TOKENS)
+
+
 def bluetooth_error_message(output, default):
+    if bluetooth_output_has_stale_pairing_error(output):
+        return "Pairing key missing; use pairing mode"
     lines = [line.strip() for line in strip_ansi(output).splitlines() if line.strip()]
     for line in reversed(lines):
         normalized = line.lower()
@@ -1469,6 +1501,12 @@ def bluetooth_connect_device(address, already_paired=False):
         if info.get("connected"):
             return True, info, ""
 
+        if bluetooth_output_has_stale_pairing_error(output):
+            info, combined_output = bluetooth_recover_stale_pairing(address, output)
+            if info.get("connected"):
+                return True, info, ""
+            return False, info, bluetooth_error_message(combined_output, "Bluetooth connection failed")
+
         bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
         retry_output = run_bluetoothctl_script(
             bluetooth_connect_commands(address, already_paired=True, include_setup=True),
@@ -1483,6 +1521,10 @@ def bluetooth_connect_device(address, already_paired=False):
             return True, info, ""
 
         combined_output = "\n".join(part for part in (output, retry_output) if part)
+        if bluetooth_output_has_stale_pairing_error(combined_output):
+            info, combined_output = bluetooth_recover_stale_pairing(address, combined_output)
+            if info.get("connected"):
+                return True, info, ""
         return False, info, bluetooth_error_message(combined_output, "Bluetooth connection failed")
 
     bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
@@ -1505,7 +1547,7 @@ def bluetooth_connect_device(address, already_paired=False):
         bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
         retry_output = run_bluetoothctl_script(
             bluetooth_connect_commands(address, already_paired=True, include_setup=False),
-            timeout=max(12, BLUETOOTH_ACTION_TIMEOUT_SEC // 2),
+            timeout=BLUETOOTH_PAIRED_ACTION_TIMEOUT_SEC,
         )
         info = wait_for_bluetooth_device_state(
             address,

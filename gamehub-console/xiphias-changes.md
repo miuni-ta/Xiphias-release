@@ -12,6 +12,8 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Changed the GPIO virtual controller to use a Chromium-standard Xbox-compatible browser identity and emit explicit D-pad button events, preventing MakeCode Arcade and the hosted portal from seeing raw Linux button indexes such as L2 as `back` or Select as reset.
 - Sped up Settings Bluetooth reconnects for already-paired devices by trying direct `bluetoothctl connect` first, while preserving the older scan plus session-setup fallback when a device rejects the bare reconnect.
 - Kept Bluetooth failure messages visible in Settings for 5 seconds so raw BlueZ errors such as `org.bluez.Error.Failed` can be read during connection troubleshooting.
+- Added stale-pairing recovery for Bluetooth `br-connection-key-missing` failures by removing the broken local bond and trying one fresh pair/connect sequence.
+- Capped Settings Bluetooth connect attempts at about 8 seconds before falling through to the next fallback path.
 
 ## 2026-07-09
 

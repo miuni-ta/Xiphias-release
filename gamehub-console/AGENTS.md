@@ -93,6 +93,10 @@ An active Settings menu overlay exists in the current checkout. It opens and clo
 
 Bluetooth action failures in Settings may surface raw BlueZ D-Bus error names such as `org.bluez.Error.Failed` from `bluetoothctl`; keep those failure messages visible for 5 seconds so operators can read or photograph the exact low-level error before it clears.
 
+If BlueZ reports `br-connection-key-missing` or another `connection-key-missing` variant while reconnecting an already-paired device, treat that pairing as stale: the Pi has a device record but not the BR/EDR link key required for the reconnect. The Settings Bluetooth path should remove the stale local record and try one fresh pair/connect sequence before surfacing a failure message that asks the user to put the device back into pairing mode.
+
+Bluetooth connect attempts from Settings should not leave the UI waiting on silent devices for long periods. Keep each BlueZ connect/pair command attempt capped at roughly 8 seconds including the short post-command state-settle poll, then move to the next fallback or show the failure message.
+
 ## Web Shell Prototype (`web-shell/`)
 The `web-shell/` directory holds a standalone HTML/CSS/JS prototype (`index.html`, `styles.css`, `app.js`) for kiosk layout experiments at 800x480. The default `web-shell/` prototype mirrors the top status bar layout from `layout.png`: a fixed dark bar, a clock icon plus live `hh:mm am/pm` time on the left, and icon-only Wi-Fi, Bluetooth, Volume, and Battery status on the right. The main content area is a solid black center stage. The bottom navigation bar is **not** included in the default web-shell prototype because it is owned by `hud_overlay.py`. Use `web-shell/` to validate shell-level layout, top-bar rendering, and center-stage sizing before wiring changes into the hosted frontend. If a task explicitly asks for a settings mockup in `web-shell/`, keep it design-only and document that temporary exception in `AGENTS.md`. Preview with:
 ```
