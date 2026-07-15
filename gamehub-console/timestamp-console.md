@@ -850,3 +850,8 @@ Use this file to keep a dated record of kiosk changes made on the Raspberry Pi. 
 - Summary: Sped up Settings Bluetooth reconnects for already-paired devices by trying a direct `bluetoothctl connect` without the pre-connect discovery scan or post-success rescan, while keeping the short discovery scan as a fallback when the direct reconnect does not take.
 - Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-115543.md`.
 - Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires opening Settings, selecting an already-paired but disconnected Bluetooth device, and confirming the connect action returns quickly without waiting for a full nearby-device scan.
+
+## 2026-07-15 12:09:12 +0800
+- Summary: Adjusted the paired-device Bluetooth reconnect fallback so the fast direct connect path remains first, but a failed direct attempt now falls back to the previous scan plus session-setup command sequence for devices that reject a bare reconnect.
+- Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-120645.md`.
+- Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires retrying the paired Bluetooth device that showed `Bluetooth connection failed`.

@@ -10,7 +10,7 @@ Detailed historical kiosk notes before this file existed still live in `timestam
 - Added a browser game-mode gate so hosted HTML games such as MakeCode Arcade receive USB and GPIO controller input through Chromium's Gamepad API without Xiphias also translating those presses into mouse clicks, scrolling, OSK toggles, home actions, or the `Start` Settings shortcut.
 - Changed the Settings `Check for Updates` version display to the alpha label format `Alpha v1.0.0` and added a tracked version-bump hook/script so future commits can increment the patch number automatically.
 - Changed the GPIO virtual controller to use a Chromium-standard Xbox-compatible browser identity and emit explicit D-pad button events, preventing MakeCode Arcade and the hosted portal from seeing raw Linux button indexes such as L2 as `back` or Select as reset.
-- Sped up Settings Bluetooth reconnects for already-paired devices by trying direct `bluetoothctl connect` first and only scanning as a fallback.
+- Sped up Settings Bluetooth reconnects for already-paired devices by trying direct `bluetoothctl connect` first, while preserving the older scan plus session-setup fallback when a device rejects the bare reconnect.
 
 ## 2026-07-09
 

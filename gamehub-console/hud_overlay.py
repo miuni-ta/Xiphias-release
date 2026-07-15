@@ -1470,8 +1470,8 @@ def bluetooth_connect_device(address, already_paired=False):
 
         bluetooth_scan_results(scan_seconds=BLUETOOTH_PRE_CONNECT_SCAN_SECONDS)
         retry_output = run_bluetoothctl_script(
-            bluetooth_connect_commands(address, already_paired=True, include_setup=False),
-            timeout=max(12, BLUETOOTH_ACTION_TIMEOUT_SEC // 2),
+            bluetooth_connect_commands(address, already_paired=True, include_setup=True),
+            timeout=BLUETOOTH_ACTION_TIMEOUT_SEC,
         )
         info = wait_for_bluetooth_device_state(
             address,
