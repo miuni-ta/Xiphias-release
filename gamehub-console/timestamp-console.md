@@ -855,3 +855,8 @@ Use this file to keep a dated record of kiosk changes made on the Raspberry Pi. 
 - Summary: Adjusted the paired-device Bluetooth reconnect fallback so the fast direct connect path remains first, but a failed direct attempt now falls back to the previous scan plus session-setup command sequence for devices that reject a bare reconnect.
 - Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-120645.md`.
 - Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires retrying the paired Bluetooth device that showed `Bluetooth connection failed`.
+
+## 2026-07-15 12:21:56 +0800
+- Summary: Kept Bluetooth action failure messages visible in the Settings overlay for 5 seconds so raw BlueZ errors such as `org.bluez.Error.Failed` are readable when a connection attempt is rejected or times out.
+- Files: `release/gamehub-console/hud_overlay.py`, `release/gamehub-console/README.md`, `release/gamehub-console/AGENTS.md`, `release/gamehub-console/xiphias-changes.md`, `release/gamehub-console/timestamp-console.md`, `release/backup/AGENTS-20260715-122156.md`.
+- Verification: Ran `python3 -m py_compile release/gamehub-console/hud_overlay.py`; ran `git diff --check`. On-device confirmation still requires forcing a Bluetooth connect failure and confirming the error stays visible for about 5 seconds.

@@ -272,6 +272,7 @@ BLUETOOTH_PAIRING_WAIT_SEC = 12.0
 BLUETOOTH_DEVICE_LIST_MAX_ITEMS = 10
 BLUETOOTH_AGENT_CAPABILITY = "KeyboardDisplay"
 BLUETOOTH_OPEN_SCAN_DELAY_MS = 220
+BLUETOOTH_FAILURE_MESSAGE_DURATION_MS = 5000
 WIFI_ACTION_TIMEOUT_SEC = 24
 WIFI_CONNECTION_WAIT_SEC = 6.0
 WIFI_NETWORK_LIST_MAX_ITEMS = 4
@@ -4652,7 +4653,10 @@ class QuickMenuOverlay:
             self.bluetooth_devices = devices
         self.clamp_detail_selection()
         if message:
-            self.set_message(message, MENU_TOAST_TEXT if success else MENU_DESTRUCTIVE)
+            if success:
+                self.set_message(message, MENU_TOAST_TEXT)
+            else:
+                self.set_message(message, MENU_DESTRUCTIVE, timeout_ms=BLUETOOTH_FAILURE_MESSAGE_DURATION_MS)
         else:
             self.clear_message()
         self.render()

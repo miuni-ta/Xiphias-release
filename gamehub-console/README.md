@@ -85,6 +85,8 @@ For the first secure Wi-Fi connection and the first Bluetooth pairing, use one o
 
 Already-paired Bluetooth devices should reconnect from Settings through a direct `bluetoothctl connect` path first. Xiphias only runs the slower discovery/session-setup fallback if that direct reconnect does not take, so returning speakers, controllers, keyboards, and mice do not pay the full nearby-device scan delay every time.
 
+Bluetooth failure messages shown in Settings come from BlueZ through `bluetoothctl`, so low-level names such as `org.bluez.Error.Failed` can appear when the device rejects a connection, times out, is not ready, or needs to be put back into pairing/connect mode. Xiphias keeps those Bluetooth error messages visible for 5 seconds so they can be read before retrying.
+
 ## Battery Support
 
 If your battery board exposes a normal battery device to `upower`, the HUD will show battery automatically and switch to the charging icon only while `upower` reports `charging`.
